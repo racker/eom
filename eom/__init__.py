@@ -8,7 +8,7 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR ONDITIONS OF ANY KIND, either express or
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
 #
 # See the License for the specific language governing permissions and
@@ -18,6 +18,6 @@ import gettext
 
 from pbr import packaging
 
-__version__ = packaging.get_version('eom')
+__version__ = '0.1'
 
 gettext.install('eom', unicode=1)
