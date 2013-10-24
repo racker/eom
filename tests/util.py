@@ -115,3 +115,12 @@ class TestCase(testtools.TestCase):
 def app(env, start_response):
     start_response('204 No Content', [])
     return []
+
+
+def wrap_404(app):
+
+    def middleware(env, start_response):
+        start_response('404 Not Found', [])
+        return []
+
+    return middleware
