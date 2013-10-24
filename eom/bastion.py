@@ -16,7 +16,7 @@
 
 """bastion: A WSGI middleware that serves as a basic gate keeper.
 
-It's primary function is to provide a way to bypass certain layers of
+Its primary function is to provide a way to bypass certain layers of
 the middleware wrapping onion, particularly for the purpose of
 allowing special access to /health -type endpoints for a load balancer
 (LB).
@@ -29,8 +29,8 @@ Wrapping with the bastion looks like:
 
 The control flow is as follows:
 
-1. If the X-Forwarded-For header is present, bypass the middleware and
-go straight to the app.
+1. If the X-Forwarded-For header is NOT present, bypass the middleware
+and go straight to the app.
 2. If the route being accessed is present in the whitelist, bypass the
 middleware and go straight to the app.
 3. Otherwise, proceed as normal (through the middleware layer).
