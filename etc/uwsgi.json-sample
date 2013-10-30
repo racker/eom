@@ -1,0 +1,6 @@
+{
+    "logvar_map": {
+        "x-project-id": "project_id",
+        "client-id": "client_id"
+    }
+}

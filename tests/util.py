@@ -27,7 +27,7 @@ class TestCase(testtools.TestCase):
     def setUp(self):
         super(TestCase, self).setUp()
 
-        self.config_file = self.conf_path('eom.conf-sample')
+        self.config_file = conf_path('eom.conf-sample')
         CONF(args=[], default_config_files=[self.config_file])
 
     def assertGreater(self, left, right):
@@ -79,17 +79,6 @@ class TestCase(testtools.TestCase):
 
         raise self.failureException(msg)
 
-    def conf_path(self, filename):
-        """Returns the full path to the specified conf file.
-
-        :param filename: Name of the conf file to find (e.g.,
-                         'eom.conf')
-        """
-
-        module_dir = os.path.abspath(os.path.dirname(__file__))
-        parent = os.path.dirname(module_dir)
-        return os.path.join(parent, 'etc', filename)
-
     def create_env(self, path, roles=None, project_id=None, method='GET'):
         env = {
             'PATH_INFO': path,
@@ -111,6 +100,21 @@ class TestCase(testtools.TestCase):
         self.status = status
         self.headers = headers
 
+def conf_dir():
+    """Returns the full path to the sample conf directory."""
+
+    module_dir = os.path.abspath(os.path.dirname(__file__))
+    parent = os.path.dirname(module_dir)
+    return os.path.join(parent, 'etc')
+
+def conf_path(filename):
+    """Returns the full path to the specified conf file.
+
+    :param filename: Name of the conf file to find (e.g.,
+                     'eom.conf')
+    """
+
+    return os.path.join(conf_dir(), filename)
 
 def app(env, start_response):
     start_response('204 No Content', [])

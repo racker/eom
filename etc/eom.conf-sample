@@ -6,3 +6,6 @@ rates_file = governor.json-sample
 node_count = 2
 period_sec = 5
 max_sleep_sec = 0.05
+
+[eom:uwsgi]
+options_file = uwsgi.json-sample
