@@ -115,3 +115,12 @@ class TestCase(testtools.TestCase):
 def app(env, start_response):
     start_response('204 No Content', [])
     return []
+
+
+def wrap_403(app):
+
+    def middleware(env, start_response):
+        start_response('403 Forbidden', [])
+        return []
+
+    return middleware
