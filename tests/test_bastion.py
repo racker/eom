@@ -49,7 +49,7 @@ class TestBastion(util.TestCase):
 
     def test_route_restricted_and_xforward_present_returns_404(self):
         env = self.create_env(self.restricted_route)
-        env['X_FORWARDED_FOR'] = 'taco'
+        env['HTTP_X_FORWARDED_FOR'] = 'taco'
         self._expect(env, 404)
 
     def test_route_restricted_and_not_forwarded_returns_204(self):
@@ -59,7 +59,7 @@ class TestBastion(util.TestCase):
     @ddt.data('/v1/healthy', '/v1/heath', '/health', 'health')
     def test_restrict_close_match_route_hits_gate(self, route):
         env = self.create_env(route)
-        env['X_FORWARDED_FOR'] = 'taco'
+        env['HTTP_X_FORWARDED_FOR'] = 'taco'
         self._expect(env, 403)
 
     @ddt.data('GET', 'HEAD', 'PUT', 'DELETE', 'POST', 'PATCH')
@@ -67,5 +67,5 @@ class TestBastion(util.TestCase):
         env = self.create_env(self.restricted_route)
         self._expect(env, 204)
 
-        env['X_FORWARDED_FOR'] = 'taco'
+        env['HTTP_X_FORWARDED_FOR'] = 'taco'
         self._expect(env, 404)
