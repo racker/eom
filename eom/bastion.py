@@ -82,7 +82,7 @@ def wrap(app_backdoor, app_gated):
     # WSGI callable
     def middleware(env, start_response):
         path = env['PATH_INFO']
-        contains_x_forward = 'X_FORWARDED_FOR' in env
+        contains_x_forward = 'HTTP_X_FORWARDED_FOR' in env
         for route in restricted_routes:
             if route == path:
                 if not contains_x_forward:
