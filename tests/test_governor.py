@@ -22,6 +22,7 @@ import time
 from wsgiref import simple_server
 
 import eom.governor
+from eom.tests import helpers
 import requests
 
 from tests import util
@@ -65,18 +66,23 @@ class TestGovernor(util.TestCase):
         self.governor(env, self.start_response)
         self.assertEqual(self.status, '204 No Content')
 
+    @helpers.is_slow()
     def test_soft_limit(self):
         self._test_limit(self.soft_limit, 204)
 
+    @helpers.is_slow()
     def test_soft_limit_burst(self):
         self._test_limit(self.soft_limit, 204, burst=True)
 
+    @helpers.is_slow()
     def test_soft_limit_default(self):
         self._test_limit(self.default_rate.soft_limit, 204, 'PATCH')
 
+    @helpers.is_slow()
     def test_hard_limit(self):
         self._test_limit(self.hard_limit, 429)
 
+    @helpers.is_slow()
     def test_hard_limit_burst(self):
         self._test_limit(self.hard_limit, 429, burst=True)
 
