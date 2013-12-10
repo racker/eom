@@ -58,12 +58,12 @@ class TestGovernor(util.TestCase):
     def test_missing_project_id(self):
         env = self.create_env('/v1')
         self.governor(env, self.start_response)
-        self.assertEquals(self.status, '400 Bad Request')
+        self.assertEqual(self.status, '400 Bad Request')
 
     def test_simple(self):
         env = self.create_env('/v1', project_id='84197')
         self.governor(env, self.start_response)
-        self.assertEquals(self.status, '204 No Content')
+        self.assertEqual(self.status, '204 No Content')
 
     def test_soft_limit(self):
         self._test_limit(self.soft_limit, 204)
@@ -141,7 +141,7 @@ class TestGovernor(util.TestCase):
         num_requests = 0
         while time.time() < stop_N:
             resp = request(url, headers={'X-Project-ID': 1234})
-            self.assertEquals(resp.status_code, expected_status)
+            self.assertEqual(resp.status_code, expected_status)
 
             num_requests += 1
 

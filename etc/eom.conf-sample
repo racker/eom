@@ -9,3 +9,6 @@ max_sleep_sec = 0.05
 
 [eom:bastion]
 restricted_routes = /v1/stats, /v1/health
+
+[eom:uwsgi:mapper]
+options_file = map.json-sample

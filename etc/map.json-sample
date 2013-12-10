@@ -1,0 +1,6 @@
+{
+    "map": {
+        "X-Project-Id": "project",
+        "X-Forwarded-For": "lb_ip"
+    }
+}
