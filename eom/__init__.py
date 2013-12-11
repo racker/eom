@@ -18,4 +18,7 @@ import gettext
 
 __version__ = '0.1'
 
-gettext.install('eom', unicode=1)
+try:
+    gettext.install('eom', unicode=1)
+except TypeError:
+    gettext.install('eom')
