@@ -41,7 +41,7 @@ class TestBastion(util.TestCase):
                   403: '403 Forbidden',
                   404: '404 Not Found'}
         self.bastion(env, self.start_response)
-        self.assertEquals(self.status, lookup[code])
+        self.assertEqual(self.status, lookup[code])
 
     def test_unrestricted_route_hits_gate(self):
         env = self.create_env(self.normal_route)

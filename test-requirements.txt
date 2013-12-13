@@ -16,3 +16,6 @@ hacking
 
 # Utils
 requests
+
+# uwsgi-module testing
+uwsgi

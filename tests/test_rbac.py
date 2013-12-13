@@ -28,54 +28,54 @@ class TestRBAC(util.TestCase):
     def test_noacl(self):
         env = self.create_env('/v1')
         self.rbac(env, self.start_response)
-        self.assertEquals(self.status, '204 No Content')
+        self.assertEqual(self.status, '204 No Content')
 
     def test_noroles(self):
         env = self.create_env('/v1/queues')
         self.rbac(env, self.start_response)
-        self.assertEquals(self.status, '403 Forbidden')
+        self.assertEqual(self.status, '403 Forbidden')
 
     def test_unrecognized_role(self):
         env = self.create_env('/v1/queues', 'super:fly')
         self.rbac(env, self.start_response)
-        self.assertEquals(self.status, '403 Forbidden')
+        self.assertEqual(self.status, '403 Forbidden')
 
     def test_can_read(self):
         for http_method in ('GET', 'HEAD', 'OPTIONS'):
             env = self.create_env('/v1/queues', 'queuing:observer',
                                   method=http_method)
             self.rbac(env, self.start_response)
-            self.assertEquals(self.status, '204 No Content')
+            self.assertEqual(self.status, '204 No Content')
 
     def test_no_read(self):
         for http_method in ('GET', 'HEAD', 'OPTIONS'):
             env = self.create_env('/v1/queues', 'queuing:producer',
                                   method=http_method)
             self.rbac(env, self.start_response)
-            self.assertEquals(self.status, '403 Forbidden')
+            self.assertEqual(self.status, '403 Forbidden')
 
     def test_can_write(self):
         for http_method in ('PATCH', 'POST', 'PUT'):
             env = self.create_env('/v1/queues', 'queuing:admin',
                                   method=http_method)
             self.rbac(env, self.start_response)
-            self.assertEquals(self.status, '204 No Content')
+            self.assertEqual(self.status, '204 No Content')
 
     def test_no_write(self):
         for http_method in ('PATCH', 'POST', 'PUT'):
             env = self.create_env('/v1/queues', 'observer',
                                   method=http_method)
             self.rbac(env, self.start_response)
-            self.assertEquals(self.status, '403 Forbidden')
+            self.assertEqual(self.status, '403 Forbidden')
 
     def test_can_delete(self):
         env = self.create_env('/v1/queues', 'queuing:gc',
                               method='DELETE')
         self.rbac(env, self.start_response)
-        self.assertEquals(self.status, '204 No Content')
+        self.assertEqual(self.status, '204 No Content')
 
     def test_no_delete(self):
         env = self.create_env('/v1/queues', 'queuing:producer',
                               method='DELETE')
         self.rbac(env, self.start_response)
-        self.assertEquals(self.status, '403 Forbidden')
+        self.assertEqual(self.status, '403 Forbidden')
