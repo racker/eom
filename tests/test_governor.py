@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import division
 import io
 import logging
 import multiprocessing
@@ -24,15 +25,15 @@ from wsgiref import simple_server
 import eom.governor
 import requests
 
-from tests import util
+import tests
 
 
-class TestGovernor(util.TestCase):
+class TestGovernor(tests.util.TestCase):
 
     def setUp(self):
         super(TestGovernor, self).setUp()
 
-        self.governor = eom.governor.wrap(util.app)
+        self.governor = eom.governor.wrap(tests.util.app)
 
         config = eom.governor.CONF['eom:governor']
         self.node_count = config['node_count']
@@ -100,22 +101,22 @@ class TestGovernor(util.TestCase):
         process.daemon = True
         process.start()
 
+        # Suppress logging
+        requests_log = logging.getLogger("requests")
+        requests_log.setLevel(logging.WARNING)
+
         # Give the process a moment to start up
         time.sleep(0.1)
 
         num_periods = 5
-        sec_per_req = float(self.period_sec) / limit
+        sec_per_req = self.period_sec / limit
         url = 'http://127.0.0.1:8783' + self.test_url
-
-        # Suppress logging
-        requests_log = logging.getLogger("requests")
-        requests_log.setLevel(logging.WARNING)
 
         # Start out at the beginning of a time bucket
         self._quantum_leap()
 
         if burst:
-            for i in range(limit + limit / 2):
+            for i in range(int(limit) + 100):
                 request(url, headers={'X-Project-ID': 1234})
 
             self._quantum_leap()
@@ -124,40 +125,28 @@ class TestGovernor(util.TestCase):
         stop_1 = start + self.period_sec
         stop_N = start + self.period_sec * num_periods
 
-        # Slightly exceed the limit
-        sleep_per_req = 0.7 * sec_per_req
-        batch_size = int(0.1 / sleep_per_req)
-        sleep_per_batch = batch_size * sleep_per_req
-
-        num_requests = 0
+        responses = []
         while time.time() < stop_1:
             resp = request(url, headers={'X-Project-ID': 1234})
-
-            # Only sleep every N requests
-            num_requests += 1
-            if num_requests % batch_size == 0:
-                time.sleep(sleep_per_batch)
+            responses.append(resp.status_code)
+            time.sleep(sec_per_req * .7)
 
         num_requests = 0
         while time.time() < stop_N:
             resp = request(url, headers={'X-Project-ID': 1234})
-            self.assertEqual(resp.status_code, expected_status)
-
+            responses.append(resp.status_code)
             num_requests += 1
-
-            # Only sleep every N requests
-            if num_requests % batch_size == 0:
-                time.sleep(sleep_per_batch)
+            time.sleep(sec_per_req * .7)
 
         if expected_status == 204:
             # We would have slept so we can predict
             # the rate.
             expected = limit * (num_periods - 1)
 
-            # Expect that we allowed a slightly faster rate per the
-            # sleep_offset setting.
-            self.assertGreater(num_requests, expected)
             self.assertAlmostEqual(num_requests, expected,
                                    delta=(150 / self.node_count))
+            self.assertNotIn(429, responses[1:])
+        else:
+            self.assertIn(429, responses)
 
         process.terminate()
