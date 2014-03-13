@@ -1,7 +1,7 @@
 EOM: Emerging OpenStack WSGI Middleware
 ===========================================
 
-:version: 0.2
+:version: 0.2.0
 
 Incubator project for general OpenStack API middleware.
 
