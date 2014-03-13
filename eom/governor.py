@@ -165,6 +165,10 @@ def _create_calc_sleep(period_sec, cache, sleep_threshold, sleep_offset):
             raise HardLimitError()
 
         if previous_count > rate.soft_limit:
+            # Normalize the sleep quantity as follows:
+            # normalized_sec = previous_count / rate.target
+            # extra_sec = normailzed_sec - period_sec
+            # return (extra_sec / previous_count) * sleep_offset
             sleep_sec = (
                 (
                     (previous_count / rate.target) - period_sec
