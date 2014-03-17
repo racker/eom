@@ -241,10 +241,10 @@ def wrap(app):
                         'rate rule "{name}"')
 
             hard_rate = rate.hard_limit / period_sec
-            LOG.debug(message,
-                      {'rate': hard_rate,
-                       'project_id': project_id,
-                       'name': rate.name})
+            LOG.warn(message,
+                     {'rate': hard_rate,
+                      'project_id': project_id,
+                      'name': rate.name})
 
             return _http_429(start_response)
 
