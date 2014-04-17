@@ -16,6 +16,7 @@
 
 from __future__ import division
 import collections
+import itertools
 import logging
 import re
 import time
@@ -28,6 +29,7 @@ CONF = cfg.CONF
 OPT_GROUP_NAME = 'eom:governor'
 OPTIONS = [
     cfg.StrOpt('rates_file'),
+    cfg.StrOpt('project_rates_file'),
     cfg.IntOpt('node_count', default=1),
     cfg.IntOpt('period_sec', default=5),
     cfg.FloatOpt('sleep_threshold', default=0.1),
@@ -37,6 +39,21 @@ OPTIONS = [
 CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
 
 LOG = logging.getLogger(__name__)
+
+
+def applies_to(rate, method, route):
+    """Determines whether this rate applies to a given request.
+
+    :param str method: HTTP method, such as GET or POST
+    :param str path: URL path, such as "/v1/queues"
+    """
+    if rate.methods is not None and method not in rate.methods:
+        return False
+
+    if rate.route is not None and not rate.route.match(route):
+        return False
+
+    return True
 
 
 class Rate(object):
@@ -78,26 +95,12 @@ class Rate(object):
         if not period_sec > 0:
             raise ValueError('period_sec must be > 0')
 
-    def applies_to(self, method, path):
-        """Determines whether this rate applies to a given request.
-
-        :param str method: HTTP method, such as GET or POST
-        :param str path: URL path, such as "/v1/queues"
-        """
-        if self.methods is not None and method not in self.methods:
-            return False
-
-        if self.route is not None and not self.route.match(path):
-            return False
-
-        return True
-
 
 class HardLimitError(Exception):
     pass
 
 
-def _load_rates(path, period_sec, node_count):
+def _load_json_file(path):
     full_path = CONF.find_file(path)
     if not full_path:
         raise cfg.ConfigFilesNotFoundError([path or '<Empty>'])
@@ -105,8 +108,21 @@ def _load_rates(path, period_sec, node_count):
     with open(full_path) as fd:
         document = json.load(fd)
 
+    return document
+
+
+def _load_rates(path, period_sec, node_count):
+    document = _load_json_file(path)
     return [Rate(rate_doc, period_sec, node_count)
             for rate_doc in document]
+
+
+def _load_project_rates(path, period_sec, node_count):
+    document = _load_json_file(path)
+    return dict(
+        (doc['project'], Rate(doc, period_sec, node_count))
+        for doc in document
+    )
 
 
 def _get_counter_key(project_id, bucket):
@@ -194,6 +210,23 @@ def _http_400(start_response):
     return []
 
 
+def match_rate(project, method, route, project_rates, general_rates):
+    """Gives priority to project-specific Rate limits."""
+    try:
+        rate = project_rates[project]
+        if applies_to(rate, method, route):
+            return rate
+    except KeyError:
+        pass
+
+    try:
+        matcher = lambda r: applies_to(r, method, route)
+        return next(itertools.ifilter(matcher,
+                                      general_rates))
+    except StopIteration:
+        return None
+
+
 def wrap(app):
     """Wrap a WSGI app with ACL middleware.
 
@@ -210,7 +243,14 @@ def wrap(app):
     sleep_offset = group['sleep_offset']
 
     rates_path = group['rates_file']
+    project_rates_path = group['project_rates_file']
     rates = _load_rates(rates_path, period_sec, node_count)
+    try:
+        project_rates = _load_project_rates(
+            project_rates_path, period_sec, node_count
+        )
+    except cfg.ConfigFilesNotFoundError:
+        project_rates = {}
 
     cache = Cache()
     calc_sleep = _create_calc_sleep(period_sec, cache,
@@ -220,18 +260,17 @@ def wrap(app):
         path = env['PATH_INFO']
         method = env['REQUEST_METHOD']
 
-        for rate in rates:
-            if rate.applies_to(method, path):
-                break
-        else:
-            LOG.debug(_('Requested path not recognized. Full steam ahead!'))
-            return app(env, start_response)
-
         try:
             project_id = env['HTTP_X_PROJECT_ID']
         except KeyError:
             LOG.debug(_('Request headers did not include X-Project-ID'))
             return _http_400(start_response)
+
+        rate = match_rate(project_id, path, method,
+                          project_rates, rates)
+        if rate is None:
+            LOG.debug(_('Requested path not recognized. Full steam ahead!'))
+            return app(env, start_response)
 
         try:
             sleep_sec = calc_sleep(project_id, rate)

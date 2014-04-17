@@ -20,26 +20,69 @@ import logging
 import multiprocessing
 import sys
 import time
+import uuid
 from wsgiref import simple_server
 
-import eom.governor
+import ddt
+from eom import governor
 import requests
 
 import tests
 
 
+def make_rate(slimit, hlimit, methods=None,
+              route=None, period_sec=1, node_count=1):
+    req = [
+        ('name', str(uuid.uuid4())),
+        ('soft_limit', slimit),
+        ('hard_limit', hlimit)
+    ]
+    return governor.Rate(dict(
+        req + (
+            [('methods', methods)] if methods is not None else []
+        ) + (
+            [('route', route)] if route is not None else []
+        )
+    ), period_sec, node_count)
+
+
+class DTuple(tuple):
+    pass
+
+
+def method_annotate(rate, method, expect):
+    r = DTuple((rate, method, expect))
+    template = '{0} | {1} -> {2}'
+    setattr(r, '__name__', template.format(
+        list(rate.methods) if rate.methods is not None else "[]",
+        method, expect)
+    )
+    return r
+
+
+def route_annotate(rate, route, expect):
+    r = DTuple((rate, route, expect))
+    template = '{0} | {1} -> {2}'
+    setattr(r, '__name__', template.format(
+        rate.route.pattern.replace('.', '%'),
+        route, expect)
+    )
+    return r
+
+
+@ddt.ddt
 class TestGovernor(tests.util.TestCase):
 
     def setUp(self):
         super(TestGovernor, self).setUp()
 
-        self.governor = eom.governor.wrap(tests.util.app)
+        self.governor = governor.wrap(tests.util.app)
 
-        config = eom.governor.CONF['eom:governor']
+        config = governor.CONF['eom:governor']
         self.node_count = config['node_count']
         self.period_sec = config['period_sec']
-        rates = eom.governor._load_rates(config['rates_file'],
-                                         self.period_sec, self.node_count)
+        rates = governor._load_rates(config['rates_file'],
+                                     self.period_sec, self.node_count)
 
         self.test_rate = rates[0]
         self.soft_limit = self.test_rate.soft_limit
@@ -80,6 +123,55 @@ class TestGovernor(tests.util.TestCase):
 
     def test_hard_limit_burst(self):
         self._test_limit(self.hard_limit, 429, burst=True)
+
+    @ddt.data(
+        # (rate, method, expect)
+        method_annotate(make_rate(100, 200), "GET", True),
+        method_annotate(make_rate(100, 200, ["GET"]), "GET", True),
+        method_annotate(make_rate(100, 200, ["GET"]), "POST", False),
+        method_annotate(make_rate(100, 200, ["GET", "POST"]), "POST", True),
+        method_annotate(make_rate(100, 200, ["GET", "POST"]), "PUT", False)
+    )
+    def test_applies_to_method(self, data):
+        rate, method, expect = data
+        self.assertEqual(governor.applies_to(rate, method, ""), expect)
+
+    @ddt.data(
+        # (rate, route, expect)
+        route_annotate(make_rate(100, 200, route="/"), "/", True),
+        route_annotate(make_rate(100, 200, route="/"), "/v1", False),
+        route_annotate(make_rate(100, 200, route="/v1.*"), "/v1", True),
+        route_annotate(make_rate(100, 200, route="/v1.*"), "/v1/queues", True),
+        route_annotate(make_rate(100, 200, route="/v1.*"), "/v2/queues", False)
+    )
+    def test_applies_to_route(self, data):
+        rate, route, expect = data
+        self.assertEqual(governor.applies_to(rate, [], route), expect)
+
+    def test_match_rate_gives_preference_to_project_specific(self):
+        expect = make_rate(1, 2)
+        prates = {'11': expect}
+        grates = [make_rate(1, 2), make_rate(3, 4)]
+        self.assertEqual(
+            governor.match_rate('11', None, None, prates, grates),
+            expect
+        )
+
+    def test_match_rate_returns_general_rate_otherwise(self):
+        expect = make_rate(1, 2)
+        prates = {'11': make_rate(1, 2)}
+        grates = [expect, make_rate(3, 4)]
+        self.assertEqual(
+            governor.match_rate('12', None, None, prates, grates),
+            expect
+        )
+
+    def test_match_rate_returns_none_when_none_applicable(self):
+        prates = {'11': make_rate(1, 2)}
+        grates = [make_rate(1, 2, ['GET']), make_rate(1, 2, ['DELETE'])]
+        self.assertIsNone(
+            governor.match_rate('12', 'PUT', None, prates, grates)
+        )
 
     #----------------------------------------------------------------------
     # Helpers
