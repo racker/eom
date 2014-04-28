@@ -8,14 +8,13 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR ONDITIONS OF ANY KIND, either express or
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
 #
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
 from __future__ import division
-import collections
 import itertools
 import logging
 import re
@@ -30,10 +29,7 @@ OPT_GROUP_NAME = 'eom:governor'
 OPTIONS = [
     cfg.StrOpt('rates_file'),
     cfg.StrOpt('project_rates_file'),
-    cfg.IntOpt('node_count', default=1),
-    cfg.IntOpt('period_sec', default=5),
-    cfg.FloatOpt('sleep_threshold', default=0.1),
-    cfg.FloatOpt('sleep_offset', default=0.99),
+    cfg.FloatOpt('sleep_offset', default=0.01)
 ]
 
 CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
@@ -65,12 +61,12 @@ class Rate(object):
         'name',
         'route',
         'methods',
+        'drain_velocity',
         'soft_limit',
-        'hard_limit',
-        'target',
+        'hard_limit'
     )
 
-    def __init__(self, document, period_sec, node_count):
+    def __init__(self, document, node_count):
         """Initializes attributes.
 
         :param dict document:
@@ -87,13 +83,10 @@ class Rate(object):
 
         self.hard_limit = document['hard_limit'] / node_count
         self.soft_limit = document['soft_limit'] / node_count
-        self.target = self.soft_limit / period_sec
+        self.drain_velocity = document['drain_velocity']
 
         if self.hard_limit <= self.soft_limit:
-            raise ValueError('hard limit must be > soft limit')
-
-        if not period_sec > 0:
-            raise ValueError('period_sec must be > 0')
+            raise ValueError('Hard limit must be > soft limit')
 
 
 class HardLimitError(Exception):
@@ -111,87 +104,51 @@ def _load_json_file(path):
     return document
 
 
-def _load_rates(path, period_sec, node_count):
+def _load_rates(path, node_count):
     document = _load_json_file(path)
-    return [Rate(rate_doc, period_sec, node_count)
+    return [Rate(rate_doc, node_count)
             for rate_doc in document]
 
 
-def _load_project_rates(path, period_sec, node_count):
+def _load_project_rates(path, node_count):
     document = _load_json_file(path)
     return dict(
-        (doc['project'], Rate(doc, period_sec, node_count))
+        (doc['project'], Rate(doc, node_count))
         for doc in document
     )
 
 
-def _get_counter_key(project_id, bucket):
-    return project_id + ':bucket:' + bucket
+def sleep_for(count, limit, sleep_offset):
+    return (count / limit) * sleep_offset
 
 
-# TODO(kgriffs): Consider converting to closure-style
-class Cache(object):
-    __slots__ = ('store',)
-
-    def __init__(self):
-        self.store = collections.defaultdict(int)
-
-    def __repr__(self):
-        return str(self.store)
-
-    def inc_counter(self, project_id, bucket):
-        key = _get_counter_key(project_id, bucket)
-        self.store[key] += 1
-        return self.store[key]
-
-    def get_counter(self, project_id, bucket):
-        key = _get_counter_key(project_id, bucket)
-        return self.store[key]
-
-    def set_counter(self, project_id, bucket, val):
-        key = _get_counter_key(project_id, bucket)
-        self.store[key] = val
-
-    def reset_counter(self, project_id, bucket):
-        key = _get_counter_key(project_id, bucket)
-        self.store[key] = 0
-
-
-def _create_calc_sleep(period_sec, cache, sleep_threshold, sleep_offset):
+def _create_calc_sleep(cache, sleep_offset):
     """Creates a closure with the given params for convenience and perf."""
 
-    ctx = {'last_bucket': None}
-
     def calc_sleep(project_id, rate):
-        normalized = int(time.time()) % (period_sec * 2)
+        now = time.time()
+        try:
+            last = cache[project_id]['t']
+            drain = (now - last) * rate.drain_velocity
+            # note(cabrera): never allow negative request counts
+            new_count = max(1, cache[project_id]['c'] - drain + 1)
+            cache[project_id] = {
+                'c': new_count,
+                't': now
+            }
 
-        current_bucket, previous_bucket = (
-            ('a', 'b') if normalized < period_sec else ('b', 'a')
-        )
+        except KeyError:
+            cache[project_id] = {
+                'c': 1,
+                't': now
+            }
 
-        if ctx['last_bucket'] != current_bucket:
-            cache.reset_counter(project_id, current_bucket)
-            ctx['last_bucket'] = current_bucket
-
-        cache.inc_counter(project_id, current_bucket)
-        previous_count = cache.get_counter(project_id, previous_bucket)
-
-        if previous_count > rate.hard_limit:
-            cache.set_counter(project_id, previous_bucket, rate.hard_limit - 1)
+        count = cache[project_id]['c']
+        if count > rate.hard_limit:
             raise HardLimitError()
 
-        if previous_count > rate.soft_limit:
-            # Normalize the sleep quantity as follows:
-            # normalized_sec = previous_count / rate.target
-            # extra_sec = normailzed_sec - period_sec
-            # return (extra_sec / previous_count) * sleep_offset
-            sleep_sec = (
-                (
-                    (previous_count / rate.target) - period_sec
-                )
-                / previous_count
-            ) * sleep_offset
-            return sleep_sec if sleep_sec >= 0 else 0
+        if count > rate.soft_limit:
+            return sleep_for(count, rate.soft_limit, sleep_offset)
 
         return 0
 
@@ -238,23 +195,20 @@ def wrap(app):
     group = CONF[OPT_GROUP_NAME]
 
     node_count = group['node_count']
-    period_sec = group['period_sec']
-    sleep_threshold = group['sleep_threshold']
     sleep_offset = group['sleep_offset']
 
     rates_path = group['rates_file']
     project_rates_path = group['project_rates_file']
-    rates = _load_rates(rates_path, period_sec, node_count)
+    rates = _load_rates(rates_path, node_count)
     try:
         project_rates = _load_project_rates(
-            project_rates_path, period_sec, node_count
+            project_rates_path, node_count
         )
     except cfg.ConfigFilesNotFoundError:
         project_rates = {}
 
-    cache = Cache()
-    calc_sleep = _create_calc_sleep(period_sec, cache,
-                                    sleep_threshold, sleep_offset)
+    cache = {}
+    calc_sleep = _create_calc_sleep(cache, sleep_offset)
 
     def middleware(env, start_response):
         path = env['PATH_INFO']
@@ -279,7 +233,8 @@ def wrap(app):
                         'project {project_id} according to '
                         'rate rule "{name}"')
 
-            hard_rate = rate.hard_limit / period_sec
+            hard_rate = rate.hard_limit
+            sleep_sec = sleep_for()
             LOG.warn(message,
                      {'rate': hard_rate,
                       'project_id': project_id,

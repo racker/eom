@@ -3,9 +3,8 @@ acls_file = rbac.json-sample
 
 [eom:governor]
 rates_file = governor.json-sample
-node_count = 2
-period_sec = 5
-max_sleep_sec = 0.05
+project_rates_file = governor-project.json-sample
+sleep_offset = 0.75
 
 [eom:bastion]
 restricted_routes = /v1/stats, /v1/health
