@@ -4,11 +4,13 @@
         "route": "/v1/queues/[^/]+/messages",
         "methods": ["GET"],
         "soft_limit": 200,
-        "hard_limit": 350
+        "hard_limit": 350,
+        "drain_velocity": 2.5
     },
     {
         "name": "default",
         "soft_limit": 100,
-        "hard_limit": 250
+        "hard_limit": 250,
+        "drain_velocity": 1.75
     }
 ]
