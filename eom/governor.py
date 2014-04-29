@@ -29,7 +29,7 @@ OPT_GROUP_NAME = 'eom:governor'
 OPTIONS = [
     cfg.StrOpt('rates_file'),
     cfg.StrOpt('project_rates_file'),
-    cfg.FloatOpt('sleep_offset', default=0.01)
+    cfg.FloatOpt('sleep_factor', default=0.01)
 ]
 
 CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
@@ -66,7 +66,7 @@ class Rate(object):
         'hard_limit'
     )
 
-    def __init__(self, document, node_count):
+    def __init__(self, document):
         """Initializes attributes.
 
         :param dict document:
@@ -81,8 +81,8 @@ class Rate(object):
             else None
         )
 
-        self.hard_limit = document['hard_limit'] / node_count
-        self.soft_limit = document['soft_limit'] / node_count
+        self.hard_limit = document['hard_limit']
+        self.soft_limit = document['soft_limit']
         self.drain_velocity = document['drain_velocity']
 
         if self.hard_limit <= self.soft_limit:
@@ -104,34 +104,36 @@ def _load_json_file(path):
     return document
 
 
-def _load_rates(path, node_count):
+def _load_rates(path):
     document = _load_json_file(path)
-    return [Rate(rate_doc, node_count)
+    return [Rate(rate_doc)
             for rate_doc in document]
 
 
-def _load_project_rates(path, node_count):
+def _load_project_rates(path):
     document = _load_json_file(path)
     return dict(
-        (doc['project'], Rate(doc, node_count))
+        (doc['project'], Rate(doc))
         for doc in document
     )
 
 
-def sleep_for(count, limit, sleep_offset):
-    return (count / limit) * sleep_offset
+def sleep_for(count, limit, sleep_factor):
+    return (count / limit) * sleep_factor
 
 
-def _create_calc_sleep(cache, sleep_offset):
+def _create_calc_sleep(cache, sleep_factor):
     """Creates a closure with the given params for convenience and perf."""
 
     def calc_sleep(project_id, rate):
         now = time.time()
+
         try:
-            last = cache[project_id]['t']
-            drain = (now - last) * rate.drain_velocity
-            # note(cabrera): never allow negative request counts
-            new_count = max(1, cache[project_id]['c'] - drain + 1)
+            bucket = cache[project_id]
+            count = bucket['c']
+            drain = (now - bucket['t']) * rate.drain_velocity
+            # note(cabrera): disallow negative counts, increment inline
+            new_count = max(0.0, count - drain) + 1.0
             cache[project_id] = {
                 'c': new_count,
                 't': now
@@ -139,18 +141,17 @@ def _create_calc_sleep(cache, sleep_offset):
 
         except KeyError:
             cache[project_id] = {
-                'c': 1,
+                'c': 1.0,
                 't': now
             }
 
-        count = cache[project_id]['c']
         if count > rate.hard_limit:
             raise HardLimitError()
 
         if count > rate.soft_limit:
-            return sleep_for(count, rate.soft_limit, sleep_offset)
+            return sleep_for(count, rate.soft_limit, sleep_factor)
 
-        return 0
+        return 0.0
 
     return calc_sleep
 
@@ -194,21 +195,19 @@ def wrap(app):
     """
     group = CONF[OPT_GROUP_NAME]
 
-    node_count = group['node_count']
-    sleep_offset = group['sleep_offset']
+    sleep_factor = group['sleep_factor']
 
     rates_path = group['rates_file']
     project_rates_path = group['project_rates_file']
-    rates = _load_rates(rates_path, node_count)
+
+    rates = _load_rates(rates_path)
     try:
-        project_rates = _load_project_rates(
-            project_rates_path, node_count
-        )
+        project_rates = _load_project_rates(project_rates_path)
     except cfg.ConfigFilesNotFoundError:
         project_rates = {}
 
     cache = {}
-    calc_sleep = _create_calc_sleep(cache, sleep_offset)
+    calc_sleep = _create_calc_sleep(cache, sleep_factor)
 
     def middleware(env, start_response):
         path = env['PATH_INFO']
