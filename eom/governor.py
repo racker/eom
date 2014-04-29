@@ -234,7 +234,7 @@ def wrap(app):
                         'rate rule "{name}"')
 
             hard_rate = rate.hard_limit
-            sleep_sec = sleep_for()
+            time.sleep(1)
             LOG.warn(message,
                      {'rate': hard_rate,
                       'project_id': project_id,
