@@ -127,6 +127,7 @@ def _create_calc_sleep(cache, sleep_factor):
 
     def calc_sleep(project_id, rate):
         now = time.time()
+        count = 1.0
 
         try:
             bucket = cache[project_id]
@@ -149,7 +150,7 @@ def _create_calc_sleep(cache, sleep_factor):
             raise HardLimitError()
 
         if count > rate.soft_limit:
-            return sleep_for(count, rate.soft_limit, sleep_factor)
+            return sleep_for(count, rate.hard_limit, sleep_factor)
 
         return 0.0
 
@@ -233,7 +234,7 @@ def wrap(app):
                         'rate rule "{name}"')
 
             hard_rate = rate.hard_limit
-            time.sleep(1)
+            time.sleep(1 * sleep_factor)
             LOG.warn(message,
                      {'rate': hard_rate,
                       'project_id': project_id,
