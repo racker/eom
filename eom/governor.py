@@ -29,7 +29,7 @@ OPT_GROUP_NAME = 'eom:governor'
 OPTIONS = [
     cfg.StrOpt('rates_file'),
     cfg.StrOpt('project_rates_file'),
-    cfg.FloatOpt('sleep_factor', default=0.01)
+    cfg.IntOpt('throttle_milliseconds')
 ]
 
 CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
@@ -62,8 +62,7 @@ class Rate(object):
         'route',
         'methods',
         'drain_velocity',
-        'soft_limit',
-        'hard_limit'
+        'limit'
     )
 
     def __init__(self, document):
@@ -81,12 +80,8 @@ class Rate(object):
             else None
         )
 
-        self.hard_limit = document['hard_limit']
-        self.soft_limit = document['soft_limit']
+        self.limit = document['limit']
         self.drain_velocity = document['drain_velocity']
-
-        if self.hard_limit <= self.soft_limit:
-            raise ValueError('Hard limit must be > soft limit')
 
 
 class HardLimitError(Exception):
@@ -111,18 +106,18 @@ def _load_rates(path):
 
 
 def _load_project_rates(path):
-    document = _load_json_file(path)
-    return dict(
-        (doc['project'], Rate(doc))
-        for doc in document
-    )
+    try:
+        document = _load_json_file(path)
+        return dict(
+            (doc['project'], Rate(doc))
+            for doc in document
+        )
+    except cfg.ConfigFilesNotFoundError:
+        LOG.warn('Proceeding without project-specific rate limits.')
+        return {}
 
 
-def sleep_for(count, limit, sleep_factor):
-    return (count / limit) * sleep_factor
-
-
-def _create_calc_sleep(cache, sleep_factor):
+def _create_limiter(cache):
     """Creates a closure with the given params for convenience and perf."""
 
     def calc_sleep(project_id, rate):
@@ -146,13 +141,8 @@ def _create_calc_sleep(cache, sleep_factor):
                 't': now
             }
 
-        if count > rate.hard_limit:
+        if count > rate.limit:
             raise HardLimitError()
-
-        if count > rate.soft_limit:
-            return sleep_for(count, rate.hard_limit, sleep_factor)
-
-        return 0.0
 
     return calc_sleep
 
@@ -196,19 +186,15 @@ def wrap(app):
     """
     group = CONF[OPT_GROUP_NAME]
 
-    sleep_factor = group['sleep_factor']
-
     rates_path = group['rates_file']
     project_rates_path = group['project_rates_file']
+    throttle_milliseconds = group['throttle_milliseconds']
 
     rates = _load_rates(rates_path)
-    try:
-        project_rates = _load_project_rates(project_rates_path)
-    except cfg.ConfigFilesNotFoundError:
-        project_rates = {}
+    project_rates = _load_project_rates(project_rates_path)
 
     cache = {}
-    calc_sleep = _create_calc_sleep(cache, sleep_factor)
+    check_limit = _create_limiter(cache)
 
     def middleware(env, start_response):
         path = env['PATH_INFO']
@@ -227,37 +213,20 @@ def wrap(app):
             return app(env, start_response)
 
         try:
-            sleep_sec = calc_sleep(project_id, rate)
+            check_limit(project_id, rate)
         except HardLimitError:
-            message = _('Hit hard limit of {rate} per sec. for '
+            message = _('Hit limit of {rate} per sec. for '
                         'project {project_id} according to '
                         'rate rule "{name}"')
 
-            hard_rate = rate.hard_limit
-            time.sleep(1 * sleep_factor)
+            time.sleep(throttle_milliseconds)
             LOG.warn(message,
-                     {'rate': hard_rate,
+                     {'rate': rate.limit,
                       'project_id': project_id,
                       'name': rate.name})
 
             return _http_429(start_response)
 
-        if sleep_sec > 0:
-            message = _('Sleeping {sleep_sec} sec. for '
-                        'project {project_id} to limit '
-                        'rate to {limit} according to '
-                        'rate rule "{name}"')
-
-            LOG.debug(message,
-                      {'sleep_sec': sleep_sec,
-                       'project_id': project_id,
-                       'limit': rate.soft_limit,
-                       'name': rate.name})
-
-            # Keep calm...
-            time.sleep(sleep_sec)
-
-        # ...and carry on.
         return app(env, start_response)
 
     return middleware

@@ -4,7 +4,7 @@ acls_file = rbac.json-sample
 [eom:governor]
 rates_file = governor.json-sample
 project_rates_file = governor-project.json-sample
-sleep_factor = 0.75
+throttle_milliseconds = 100
 
 [eom:bastion]
 restricted_routes = /v1/stats, /v1/health
