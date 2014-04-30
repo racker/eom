@@ -1,14 +1,12 @@
 [
     {
         "project": "281928",
-        "soft_limit": 130,
-        "hard_limit": 260,
+        "limit": 260,
         "drain_velocity": 2.75
     },
     {
         "project": "281929",
-        "soft_limit": 135,
-        "hard_limit": 270,
+        "limit": 270,
         "route": "/v1/queues/[^/]+/messages",
         "methods": ["GET", "DELETE"],
         "drain_velocity": 3.14159
