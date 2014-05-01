@@ -188,7 +188,7 @@ def wrap(app):
 
     rates_path = group['rates_file']
     project_rates_path = group['project_rates_file']
-    throttle_milliseconds = group['throttle_milliseconds']
+    throttle_milliseconds = group['throttle_milliseconds'] / 1000
 
     rates = _load_rates(rates_path)
     project_rates = _load_project_rates(project_rates_path)

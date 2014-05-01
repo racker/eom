@@ -1,10 +1,12 @@
 [
     {
+        "name": "two_eight_one",
         "project": "281928",
         "limit": 260,
         "drain_velocity": 2.75
     },
     {
+        "name": "more_than_260",
         "project": "281929",
         "limit": 270,
         "route": "/v1/queues/[^/]+/messages",
