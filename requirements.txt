@@ -1,5 +1,5 @@
 d2to1>=0.2.10
 pbr>=0.5.16
-
+redis>=2.9.1
 oslo.config>=1.1.0
 simplejson

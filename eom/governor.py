@@ -23,16 +23,27 @@ import time
 from oslo.config import cfg
 import simplejson as json
 
+from eom.utils import redis_pool
+
 CONF = cfg.CONF
 
-OPT_GROUP_NAME = 'eom:governor'
+GOV_GROUP_NAME = 'eom:governor'
 OPTIONS = [
     cfg.StrOpt('rates_file'),
     cfg.StrOpt('project_rates_file'),
     cfg.IntOpt('throttle_milliseconds')
 ]
 
-CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
+CONF.register_opts(OPTIONS, group=GOV_GROUP_NAME)
+
+REDIS_GROUP_NAME = 'eom:redis'
+OPTIONS = [
+    cfg.StrOpt('host'),
+    cfg.StrOpt('port'),
+]
+
+CONF.register_opts(OPTIONS, group=REDIS_GROUP_NAME)
+
 
 LOG = logging.getLogger(__name__)
 
@@ -117,7 +128,7 @@ def _load_project_rates(path):
         return {}
 
 
-def _create_limiter(cache):
+def _create_limiter(redis_handler):
     """Creates a closure with the given params for convenience and perf."""
 
     def calc_sleep(project_id, rate):
@@ -125,21 +136,17 @@ def _create_limiter(cache):
         count = 1.0
 
         try:
-            bucket = cache[project_id]
-            count = bucket['c']
-            drain = (now - bucket['t']) * rate.drain_velocity
+            if redis_handler.hget(project_id, 'c') is None:
+                raise KeyError
+            count = float(redis_handler.hget(project_id, 'c'))
+            drain = (
+                now - float(redis_handler.hget(project_id, 't'))) * rate.drain_velocity
             # note(cabrera): disallow negative counts, increment inline
             new_count = max(0.0, count - drain) + 1.0
-            cache[project_id] = {
-                'c': new_count,
-                't': now
-            }
+            redis_handler.hmset(project_id, {'c': new_count, 't': now})
 
         except KeyError:
-            cache[project_id] = {
-                'c': 1.0,
-                't': now
-            }
+            redis_handler.hmset(project_id, {'c': 1.0, 't': now})
 
         if count > rate.limit:
             raise HardLimitError()
@@ -184,7 +191,7 @@ def wrap(app):
     :param app: WSGI app to wrap
     :returns: a new WSGI app that wraps the original
     """
-    group = CONF[OPT_GROUP_NAME]
+    group = CONF[GOV_GROUP_NAME]
 
     rates_path = group['rates_file']
     project_rates_path = group['project_rates_file']
@@ -193,8 +200,8 @@ def wrap(app):
     rates = _load_rates(rates_path)
     project_rates = _load_project_rates(project_rates_path)
 
-    cache = {}
-    check_limit = _create_limiter(cache)
+    redis_handler = redis_pool.get_connection()
+    check_limit = _create_limiter(redis_handler)
 
     def middleware(env, start_response):
         path = env['PATH_INFO']
