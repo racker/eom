@@ -64,6 +64,7 @@ def applies_to(rate, method, route):
 
 
 class Rate(object):
+
     """Represents an individual rate configuration."""
 
     # NOTE(kgriffs): Hard-code slots to make attribute
@@ -136,11 +137,13 @@ def _create_limiter(redis_handler):
         count = 1.0
 
         try:
-            if redis_handler.hget(project_id, 'c') is None:
+            if None in redis_handler.hmget(project_id, 'c', 't'):
                 raise KeyError
-            count = float(redis_handler.hget(project_id, 'c'))
+            count, last_time = [
+                float(key) for key in redis_handler.hmget(
+                    project_id, 'c', 't')]
             drain = (
-                now - float(redis_handler.hget(project_id, 't'))) * rate.drain_velocity
+                now - last_time) * rate.drain_velocity
             # note(cabrera): disallow negative counts, increment inline
             new_count = max(0.0, count - drain) + 1.0
             redis_handler.hmset(project_id, {'c': new_count, 't': now})
