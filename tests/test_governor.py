@@ -25,10 +25,12 @@ import uuid
 from wsgiref import simple_server
 
 import ddt
-from eom import governor
+import fakeredis
 import requests
 
+from eom import governor
 import tests
+import util
 
 
 def run_server(app, host, port):
@@ -84,6 +86,10 @@ def make_rate(limit, methods=None,
     ))
 
 
+def fakeredis_connection():
+    return fakeredis.FakeRedis()
+
+
 class DTuple(tuple):
     pass
 
@@ -113,8 +119,8 @@ class TestGovernor(tests.util.TestCase):
 
     def setUp(self):
         super(TestGovernor, self).setUp()
-
-        self.governor = governor.wrap(tests.util.app)
+        redis_handler = fakeredis_connection()
+        self.governor = governor.wrap(tests.util.app, redis_handler)
 
         config = governor.CONF['eom:governor']
         rates = governor._load_rates(config['rates_file'])
@@ -122,13 +128,14 @@ class TestGovernor(tests.util.TestCase):
         self.test_rate = rates[0]
         self.limit = self.test_rate.limit
         self.test_url = '/v1/queues/fizbit/messages'
-        self.limiter = governor._create_limiter({})
+        self.limiter = governor._create_limiter(redis_handler)
 
         self.default_rate = rates[1]
 
     def tearDown(self):
         super(TestGovernor, self).tearDown()
-        self.limiter = governor._create_limiter({})
+        redis_handler = fakeredis_connection()
+        redis_handler.flushall()
 
     def test_missing_project_id(self):
         env = self.create_env('/v1')

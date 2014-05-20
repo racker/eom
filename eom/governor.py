@@ -185,13 +185,21 @@ def match_rate(project, method, route, project_rates, general_rates):
     except StopIteration:
         return None
 
+# NOTE(TheSriram) : the app needs to be wrapped as such:
+# from eom.utils import redis_pool
+# redis_handler = redis_pool.get_connection()
+# governor.wraps(app, redis_handler)
+# get_connection() handles the redis settings which
+# are set in governor.conf
 
-def wrap(app):
+
+def wrap(app, redis_handler):
     """Wrap a WSGI app with ACL middleware.
 
     Takes configuration from oslo.config.cfg.CONF.
 
     :param app: WSGI app to wrap
+    :param redis_handler: pooled redis connection handler
     :returns: a new WSGI app that wraps the original
     """
     group = CONF[GOV_GROUP_NAME]
@@ -203,7 +211,6 @@ def wrap(app):
     rates = _load_rates(rates_path)
     project_rates = _load_project_rates(project_rates_path)
 
-    redis_handler = redis_pool.get_connection()
     check_limit = _create_limiter(redis_handler)
 
     def middleware(env, start_response):
