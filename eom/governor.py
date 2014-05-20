@@ -188,9 +188,9 @@ def match_rate(project, method, route, project_rates, general_rates):
 # NOTE(TheSriram) : the app needs to be wrapped as such:
 # from eom.utils import redis_pool
 # redis_handler = redis_pool.get_connection()
-# governor.wraps(app, redis_handler)
+# governor.wrap(app, redis_handler)
 # get_connection() handles the redis settings which
-# are set in governor.conf
+# are set in eom.conf
 
 
 def wrap(app, redis_handler):
