@@ -22,8 +22,8 @@ import time
 
 from oslo.config import cfg
 import simplejson as json
+import redis
 
-from eom.utils import redis_pool
 
 CONF = cfg.CONF
 
@@ -150,6 +150,9 @@ def _create_limiter(redis_handler):
 
         except KeyError:
             redis_handler.hmset(project_id, {'c': 1.0, 't': now})
+        except redis.exceptions.ConnectionError as ex:
+            message = _('Redis Error:{exception} for Project-ID:{project_id}')
+            LOG.warn((message.format(exception=ex, project_id=project_id)))
 
         if count > rate.limit:
             raise HardLimitError()
