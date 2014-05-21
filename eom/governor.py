@@ -137,15 +137,15 @@ def _create_limiter(redis_handler):
         count = 1.0
 
         try:
-            if None in redis_handler.hmget(project_id, 'c', 't'):
-                raise KeyError
             count, last_time = [
-                float(key) for key in redis_handler.hmget(
+                key for key in redis_handler.hmget(
                     project_id, 'c', 't')]
+            if not all([count, last_time]):
+                raise KeyError
             drain = (
-                now - last_time) * rate.drain_velocity
+                now - float(last_time)) * rate.drain_velocity
             # note(cabrera): disallow negative counts, increment inline
-            new_count = max(0.0, count - drain) + 1.0
+            new_count = max(0.0, float(count) - drain) + 1.0
             redis_handler.hmset(project_id, {'c': new_count, 't': now})
 
         except KeyError:
@@ -187,13 +187,6 @@ def match_rate(project, method, route, project_rates, general_rates):
                                       general_rates))
     except StopIteration:
         return None
-
-# NOTE(TheSriram) : the app needs to be wrapped as such:
-# from eom.utils import redis_pool
-# redis_handler = redis_pool.get_connection()
-# governor.wrap(app, redis_handler)
-# get_connection() handles the redis settings which
-# are set in eom.conf
 
 
 def wrap(app, redis_handler):
