@@ -129,7 +129,7 @@ def _load_project_rates(path):
         return {}
 
 
-def _create_limiter(redis_handler):
+def _create_limiter(redis_client):
     """Creates a closure with the given params for convenience and perf."""
 
     def calc_sleep(project_id, rate):
@@ -138,7 +138,7 @@ def _create_limiter(redis_handler):
 
         try:
             count, last_time = [
-                key for key in redis_handler.hmget(
+                key for key in redis_client.hmget(
                     project_id, 'c', 't')]
             if not all([count, last_time]):
                 raise KeyError
@@ -146,10 +146,10 @@ def _create_limiter(redis_handler):
                 now - float(last_time)) * rate.drain_velocity
             # note(cabrera): disallow negative counts, increment inline
             new_count = max(0.0, float(count) - drain) + 1.0
-            redis_handler.hmset(project_id, {'c': new_count, 't': now})
+            redis_client.hmset(project_id, {'c': new_count, 't': now})
 
         except KeyError:
-            redis_handler.hmset(project_id, {'c': 1.0, 't': now})
+            redis_client.hmset(project_id, {'c': 1.0, 't': now})
         except redis.exceptions.ConnectionError as ex:
             message = _('Redis Error:{exception} for Project-ID:{project_id}')
             LOG.warn((message.format(exception=ex, project_id=project_id)))
@@ -189,13 +189,13 @@ def match_rate(project, method, route, project_rates, general_rates):
         return None
 
 
-def wrap(app, redis_handler):
+def wrap(app, redis_client):
     """Wrap a WSGI app with ACL middleware.
 
     Takes configuration from oslo.config.cfg.CONF.
 
     :param app: WSGI app to wrap
-    :param redis_handler: pooled redis connection handler
+    :param redis_client: pooled redis client
     :returns: a new WSGI app that wraps the original
     """
     group = CONF[GOV_GROUP_NAME]
@@ -207,7 +207,7 @@ def wrap(app, redis_handler):
     rates = _load_rates(rates_path)
     project_rates = _load_project_rates(project_rates_path)
 
-    check_limit = _create_limiter(redis_handler)
+    check_limit = _create_limiter(redis_client)
 
     def middleware(env, start_response):
         path = env['PATH_INFO']

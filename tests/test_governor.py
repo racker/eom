@@ -8,7 +8,7 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR ONDITIONS OF ANY KIND, either express or
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
 #
 # See the License for the specific language governing permissions and
@@ -30,7 +30,7 @@ import requests
 
 from eom import governor
 import tests
-import util
+from . import util
 
 
 def run_server(app, host, port):
@@ -119,8 +119,8 @@ class TestGovernor(tests.util.TestCase):
 
     def setUp(self):
         super(TestGovernor, self).setUp()
-        redis_handler = fakeredis_connection()
-        self.governor = governor.wrap(tests.util.app, redis_handler)
+        redis_client = fakeredis_connection()
+        self.governor = governor.wrap(tests.util.app, redis_client)
 
         config = governor.CONF['eom:governor']
         rates = governor._load_rates(config['rates_file'])
@@ -128,14 +128,14 @@ class TestGovernor(tests.util.TestCase):
         self.test_rate = rates[0]
         self.limit = self.test_rate.limit
         self.test_url = '/v1/queues/fizbit/messages'
-        self.limiter = governor._create_limiter(redis_handler)
+        self.limiter = governor._create_limiter(redis_client)
 
         self.default_rate = rates[1]
 
     def tearDown(self):
         super(TestGovernor, self).tearDown()
-        redis_handler = fakeredis_connection()
-        redis_handler.flushall()
+        redis_client = fakeredis_connection()
+        redis_client.flushall()
 
     def test_missing_project_id(self):
         env = self.create_env('/v1')
@@ -198,7 +198,7 @@ class TestGovernor(tests.util.TestCase):
 
     def test_limiter_raises_if_over_limit(self):
         call = lambda: self.limiter(1, self.test_rate)
-        [call() for _ in range(self.limit+1)]
+        [call() for _ in range(self.limit + 1)]
         self.assertRaises(governor.HardLimitError, call)
 
     def test_limit_reached_no_429(self):
@@ -231,7 +231,7 @@ class TestGovernor(tests.util.TestCase):
         with make_silent_server(self.governor, host, port):
             url = 'http://%s:%s' % (host, port) + self.test_url
             call = lambda: request(url, headers={'X-Project-ID': 1234})
-            [call().status_code for _ in range(limit//2)]
+            [call().status_code for _ in range(limit // 2)]
             time.sleep(0.5)
-            resp = [call().status_code for _ in range(limit//2)][-1]
+            resp = [call().status_code for _ in range(limit // 2)][-1]
             self.assertEqual(resp, expected_status)

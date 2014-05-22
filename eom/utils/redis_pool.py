@@ -13,8 +13,7 @@ OPTIONS = [
 CONF.register_opts(OPTIONS, group=REDIS_GROUP_NAME)
 
 
-def get_connection():
+def get_client():
     group = CONF[REDIS_GROUP_NAME]
     pool = redis.ConnectionPool(host=group['host'], port=group['port'], db=0)
-    r = redis.Redis(connection_pool=pool)
-    return r
+    return redis.Redis(connection_pool=pool)
