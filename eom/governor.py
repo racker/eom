@@ -142,9 +142,10 @@ def _create_limiter(redis_client):
                     project_id, 'c', 't')]
             if not all([count, last_time]):
                 raise KeyError
-            drain = (now - float(last_time)) * rate.drain_velocity
+            count, last_time = float(count), float(last_time)
+            drain = (now - last_time) * rate.drain_velocity
             # note(cabrera): disallow negative counts, increment inline
-            new_count = max(0.0, float(count) - drain) + 1.0
+            new_count = max(0.0, count - drain) + 1.0
             redis_client.hmset(project_id, {'c': new_count, 't': now})
 
         except KeyError:
