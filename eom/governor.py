@@ -137,12 +137,14 @@ def _create_limiter(redis_client):
         count = 1.0
 
         try:
-            count, last_time = [
-                key for key in redis_client.hmget(
-                    project_id, 'c', 't')]
+            count, last_time = [key for key in
+                                redis_client.hmget(project_id, 'c', 't')]
+
             if not all([count, last_time]):
                 raise KeyError
+
             count, last_time = float(count), float(last_time)
+
             drain = (now - last_time) * rate.drain_velocity
             # note(cabrera): disallow negative counts, increment inline
             new_count = max(0.0, count - drain) + 1.0
@@ -150,6 +152,7 @@ def _create_limiter(redis_client):
 
         except KeyError:
             redis_client.hmset(project_id, {'c': 1.0, 't': now})
+
         except redis.exceptions.ConnectionError as ex:
             message = _('Redis Error:{exception} for Project-ID:{project_id}')
             LOG.warn((message.format(exception=ex, project_id=project_id)))
