@@ -22,17 +22,28 @@ import time
 
 from oslo.config import cfg
 import simplejson as json
+import redis
+
 
 CONF = cfg.CONF
 
-OPT_GROUP_NAME = 'eom:governor'
+GOV_GROUP_NAME = 'eom:governor'
 OPTIONS = [
     cfg.StrOpt('rates_file'),
     cfg.StrOpt('project_rates_file'),
     cfg.IntOpt('throttle_milliseconds')
 ]
 
-CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
+CONF.register_opts(OPTIONS, group=GOV_GROUP_NAME)
+
+REDIS_GROUP_NAME = 'eom:redis'
+OPTIONS = [
+    cfg.StrOpt('host'),
+    cfg.StrOpt('port'),
+]
+
+CONF.register_opts(OPTIONS, group=REDIS_GROUP_NAME)
+
 
 LOG = logging.getLogger(__name__)
 
@@ -53,6 +64,7 @@ def applies_to(rate, method, route):
 
 
 class Rate(object):
+
     """Represents an individual rate configuration."""
 
     # NOTE(kgriffs): Hard-code slots to make attribute
@@ -117,7 +129,7 @@ def _load_project_rates(path):
         return {}
 
 
-def _create_limiter(cache):
+def _create_limiter(redis_client):
     """Creates a closure with the given params for convenience and perf."""
 
     def calc_sleep(project_id, rate):
@@ -125,21 +137,25 @@ def _create_limiter(cache):
         count = 1.0
 
         try:
-            bucket = cache[project_id]
-            count = bucket['c']
-            drain = (now - bucket['t']) * rate.drain_velocity
+            count, last_time = [key for key in
+                                redis_client.hmget(project_id, 'c', 't')]
+
+            if not all([count, last_time]):
+                raise KeyError
+
+            count, last_time = float(count), float(last_time)
+
+            drain = (now - last_time) * rate.drain_velocity
             # note(cabrera): disallow negative counts, increment inline
             new_count = max(0.0, count - drain) + 1.0
-            cache[project_id] = {
-                'c': new_count,
-                't': now
-            }
+            redis_client.hmset(project_id, {'c': new_count, 't': now})
 
         except KeyError:
-            cache[project_id] = {
-                'c': 1.0,
-                't': now
-            }
+            redis_client.hmset(project_id, {'c': 1.0, 't': now})
+
+        except redis.exceptions.ConnectionError as ex:
+            message = _('Redis Error:{exception} for Project-ID:{project_id}')
+            LOG.warn((message.format(exception=ex, project_id=project_id)))
 
         if count > rate.limit:
             raise HardLimitError()
@@ -176,15 +192,16 @@ def match_rate(project, method, route, project_rates, general_rates):
         return None
 
 
-def wrap(app):
+def wrap(app, redis_client):
     """Wrap a WSGI app with ACL middleware.
 
     Takes configuration from oslo.config.cfg.CONF.
 
     :param app: WSGI app to wrap
+    :param redis_client: pooled redis client
     :returns: a new WSGI app that wraps the original
     """
-    group = CONF[OPT_GROUP_NAME]
+    group = CONF[GOV_GROUP_NAME]
 
     rates_path = group['rates_file']
     project_rates_path = group['project_rates_file']
@@ -193,8 +210,7 @@ def wrap(app):
     rates = _load_rates(rates_path)
     project_rates = _load_project_rates(project_rates_path)
 
-    cache = {}
-    check_limit = _create_limiter(cache)
+    check_limit = _create_limiter(redis_client)
 
     def middleware(env, start_response):
         path = env['PATH_INFO']
