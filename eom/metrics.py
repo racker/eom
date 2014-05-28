@@ -14,7 +14,8 @@ regex_strings = [
     ('queues', '^/v[0-9]+(\.[0-9]+)?/queues(/)?(\?(.)+)?$'),
     ('queue', '^/v[0-9]+(\.[0-9]+)?/queues/[a-zA-Z0-9\-_]+(/)?$'),
     ('messages', '^/v[0-9]+(\.[0-9]+)?/queues/[a-zA-Z0-9\-_]+/messages(/)?(\?(.)+)?$'),
-    ('message_claim', '^/v[0-9]+(\.[0-9]+)?/queues/[a-zA-Z0-9\-_]+/messages/[a-zA-Z0-9_\-]+(/)?(\?claim_id=[a-zA-Z0-9_\-]+)?$'),
+    ('message_claim', '^/v[0-9]+(\.[0-9]+)?/queues/[a-zA-Z0-9\-_]+'
+                      '/messages/[a-zA-Z0-9_\-]+(/)?(\?claim_id=[a-zA-Z0-9_\-]+)?$'),
     ('claim_create', '^/v[0-9]+(\.[0-9]+)?/queues/[a-zA-Z0-9\-_]+/claims(/)?(\?(.)+)?$'),
     ('claim', '^/v[0-9]+(\.[0-9]+)?/queues/[a-zA-Z0-9\-_]+/claims/[a-zA-Z0-9_\-]+(/)?$'),
 ]
