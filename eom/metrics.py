@@ -8,25 +8,27 @@ OPT_GROUP_NAME = 'eom:statsd'
 OPTIONS = [
     cfg.StrOpt('statsd_address',
                help='host:port for statsd server.',
-               required=True)
-]
+               required=True),
+    cfg.ListOpt('path_regexes_keys',
+                help='keys for regexes for the paths of the WSGI app',
+                required=False),
 
-regex_strings = [
-    ('queues', '^/v[0-9]+(\.[0-9]+)?/queues(/)?(\?(.)+)?$'),
-    ('queue', '^/v[0-9]+(\.[0-9]+)?/queues/[a-zA-Z0-9\-_]+(/)?$'),
-    ('messages', '^/v[0-9]+(\.[0-9]+)?/queues/[a-zA-Z0-9\-_]+/messages(/)?(\?(.)+)?$'),
-    ('message_claim', '^/v[0-9]+(\.[0-9]+)?/queues/[a-zA-Z0-9\-_]+'
-                      '/messages/[a-zA-Z0-9_\-]+(/)?(\?claim_id=[a-zA-Z0-9_\-]+)?$'),
-    ('claim_create', '^/v[0-9]+(\.[0-9]+)?/queues/[a-zA-Z0-9\-_]+/claims(/)?(\?(.)+)?$'),
-    ('claim', '^/v[0-9]+(\.[0-9]+)?/queues/[a-zA-Z0-9\-_]+/claims/[a-zA-Z0-9_\-]+(/)?$'),
+    cfg.ListOpt('path_regexes_values',
+                help='regexes for the paths of the WSGI app',
+                required=False)
 ]
-
 
 def wrap(app):
     conf = cfg.CONF
     conf.register_opts(OPTIONS, group=OPT_GROUP_NAME)
     addr = conf[OPT_GROUP_NAME].statsd_address or 'localhost'
+    keys = conf[OPT_GROUP_NAME].path_regexes_keys or []
+    values = conf[OPT_GROUP_NAME].path_regexes_values or []
+
+    regex_strings = zip(keys, values)
+
     client = StatsClient(addr)
+
 
     # initialize buckets
     for request_method in ["GET", "PUT", "HEAD", "POST", "DELETE", "PATCH"]:
@@ -47,14 +49,14 @@ def wrap(app):
             elif status_code / 200 == 1:
                 client.incr("marconi."+hostname+".requests."+request_method+"."+api_method+".2xx")
 
-            client.incr("marconi."+hostname+".requests."+request_method+"."+api_method)
+            #client.incr("marconi."+hostname+".requests."+request_method+"."+api_method)
 
             return start_response(status, headers, *args)
 
         request_method = env["REQUEST_METHOD"]
         path = env["PATH_INFO"]
         hostname = socket.gethostname()
-        api_method = ""
+        api_method = "unknown"
 
         for (method, pattern) in regex_strings:
             regex = re.compile(pattern)
@@ -66,7 +68,7 @@ def wrap(app):
         stop = time.time() * 1000
 
         elapsed = stop - start
-        client.timing("latency."+request_method, elapsed)
+        client.timing("marconi."+hostname+".latency."+request_method, elapsed)
         return response
 
     return middleware
