@@ -2,6 +2,7 @@ from statsd import StatsClient
 import time
 import re
 from oslo.config import cfg
+import socket
 
 OPT_GROUP_NAME = 'eom:statsd'
 OPTIONS = [
@@ -27,31 +28,32 @@ def wrap(app):
     addr = conf[OPT_GROUP_NAME].statsd_address or 'localhost'
     client = StatsClient(addr)
 
+    # initialize buckets
+    for request_method in ["GET", "PUT", "HEAD", "POST", "DELETE", "PATCH"]:
+        for name, regex in regex_strings:
+            for code in ["2xx", "4xx", "5xx"]:
+                client.incr("marconi."+socket.gethostname()+".requests."+request_method+"."+name+"."+code)
+                client.decr("marconi."+socket.gethostname()+".requests."+request_method+"."+name+"."+code)
+
+
     def middleware(env, start_response):
 
         def _start_response(status, headers, *args):
             status_code = int(status[:3])
             if status_code / 500 == 1:
-                client.incr("requests.500")
-                client.incr("requests."+request_method+".500")
-                client.incr("requests."+request_method+"."+api_method+".500")
+                client.incr("marconi."+hostname+".requests."+request_method+"."+api_method+".5xx")
             elif status_code / 400 == 1:
-                client.incr("requests.400")
-                client.incr("requests."+request_method+".400")
-                client.incr("requests."+request_method+"."+api_method+".400")
+                client.incr("marconi."+hostname+".requests."+request_method+"."+api_method+".4xx")
             elif status_code / 200 == 1:
-                client.incr("requests.200")
-                client.incr("requests."+request_method+".200")
-                client.incr("requests."+request_method+"."+api_method+".200")
+                client.incr("marconi."+hostname+".requests."+request_method+"."+api_method+".2xx")
 
-            client.incr("requests.total")
-            client.incr("requests."+request_method)
-            client.incr("requests."+request_method+"."+api_method)
+            client.incr("marconi."+hostname+".requests."+request_method+"."+api_method)
 
             return start_response(status, headers, *args)
 
         request_method = env["REQUEST_METHOD"]
         path = env["PATH_INFO"]
+        hostname = socket.gethostname()
         api_method = ""
 
         for (method, pattern) in regex_strings:
