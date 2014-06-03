@@ -236,11 +236,10 @@ def wrap(app, redis_client):
                         'rate rule "{name}"')
 
             time.sleep(throttle_milliseconds)
-            LOG.warn(message,
-                     {'rate': rate.limit,
-                      'project_id': project_id,
-                      'name': rate.name})
 
+            LOG.warn(message.format(rate=rate.limit,
+                                    project_id=project_id,
+                                    name=rate.name))
             return _http_429(start_response)
 
         return app(env, start_response)
