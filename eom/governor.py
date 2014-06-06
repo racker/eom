@@ -133,33 +133,36 @@ def _create_limiter(redis_client):
     """Creates a closure with the given params for convenience and perf."""
 
     def calc_sleep(project_id, rate):
+        count = 0.0
         now = time.time()
-        count = 1.0
-
+ 
         try:
             count, last_time = [key for key in
                                 redis_client.hmget(project_id, 'c', 't')]
-
+ 
             if not all([count, last_time]):
                 raise KeyError
-
+ 
             count, last_time = float(count), float(last_time)
-
-            drain = (now - last_time) * rate.drain_velocity
-            # note(cabrera): disallow negative counts, increment inline
-            new_count = max(0.0, count - drain) + 1.0
-            redis_client.hmset(project_id, {'c': new_count, 't': now})
-
+ 
+            # if one second has passed since last reset, reset the count and time.
+            if now - last_time > 1:
+                redis_client.hmset(project_id, {'c': 0.0, 't': now})
+ 
+            else:
+                if count + 1 >= rate.limit:
+                    raise HardLimitError()
+                else:
+                    # just update the count, keep the counting-start time intact
+                    redis_client.hmset(project_id, {'c': count + 1, 't': last_time})
+ 
         except KeyError:
-            redis_client.hmset(project_id, {'c': 1.0, 't': now})
-
+            redis_client.hmset(project_id, {'c': 0.0, 't': now})
+ 
         except redis.exceptions.ConnectionError as ex:
             message = _('Redis Error:{exception} for Project-ID:{project_id}')
             LOG.warn((message.format(exception=ex, project_id=project_id)))
-
-        if count > rate.limit:
-            raise HardLimitError()
-
+ 
     return calc_sleep
 
 
@@ -235,7 +238,8 @@ def wrap(app, redis_client):
                         'project {project_id} according to '
                         'rate rule "{name}"')
 
-            time.sleep(throttle_milliseconds)
+            # time.sleep(throttle_milliseconds)
+            # time.sleep(2)
 
             LOG.warn(message.format(rate=rate.limit,
                                     project_id=project_id,
