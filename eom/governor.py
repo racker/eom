@@ -238,9 +238,6 @@ def wrap(app, redis_client):
                         'project {project_id} according to '
                         'rate rule "{name}"')
 
-            # time.sleep(throttle_milliseconds)
-            # time.sleep(2)
-
             LOG.warn(message.format(rate=rate.limit,
                                     project_id=project_id,
                                     name=rate.name))
