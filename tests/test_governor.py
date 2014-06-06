@@ -123,8 +123,8 @@ class TestGovernor(tests.util.TestCase):
 
     def setUp(self):
         super(TestGovernor, self).setUp()
-        # redis_client = fakeredis_connection()
-        redis_client = realredis_connection()
+        redis_client = fakeredis_connection()
+        # redis_client = realredis_connection()
         self.governor = governor.wrap(tests.util.app, redis_client)
 
         config = governor.CONF['eom:governor']
@@ -228,7 +228,7 @@ class TestGovernor(tests.util.TestCase):
         host, port = '127.0.0.1', 8783
         with make_silent_server(self.governor, host, port):
             url = 'http://%s:%s' % (host, port) + self.test_url
-            call = lambda: request(url, headers={'X-Project-ID': 123456})
+            call = lambda: request(url, headers={'X-Project-ID': 1234})
             resps = [call().status_code for _ in range(limit)]
             self.assertEqual(resps[-1], expected_status)
 
