@@ -138,8 +138,11 @@ def _create_limiter(redis_client):
         try:
             now_sec, now_usec = redis_client.execute_command("TIME")
 
-            count, last_time_sec, last_time_usec = [key for key in
-                                                    redis_client.hmget(project_id, 'c', 't_s', 't_us')]
+            (count,
+                last_time_sec,
+                last_time_usec) = [key for key in
+                                   redis_client.hmget(project_id,
+                                                      'c', 't_s', 't_us')]
 
             if not all([count, last_time_sec, last_time_usec]):
                 raise KeyError
@@ -154,7 +157,7 @@ def _create_limiter(redis_client):
                     project_id, {
                         'c': 0.0, 't_s': now_sec, 't_us': now_usec})
 
-            elif (now_sec - last_time_sec == 1) and (now_usec > last_time_usec):
+            elif now_sec - last_time_sec == 1 and now_usec > last_time_usec:
                 redis_client.hmset(
                     project_id, {
                         'c': 0.0, 't_s': now_sec, 't_us': now_usec})
@@ -167,7 +170,9 @@ def _create_limiter(redis_client):
                     # intact
                     redis_client.hmset(
                         project_id, {
-                            'c': count + 1, 't_s': last_time_sec, 't_us': last_time_usec})
+                            'c': count + 1,
+                            't_s': last_time_sec,
+                            't_us': last_time_usec})
 
         except KeyError:
             redis_client.hmset(
