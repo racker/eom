@@ -134,30 +134,34 @@ def _create_limiter(redis_client):
 
     def calc_sleep(project_id, rate):
         count = 0.0
-        now = time.time()
- 
+         
         try:
-            count, last_time = [key for key in
-                                redis_client.hmget(project_id, 'c', 't')]
+            now_sec, now_usec = redis_client.execute_command("TIME")
+            
+            count, last_time_sec, last_time_usec = [key for key in
+                                redis_client.hmget(project_id, 'c', 't_s', 't_us')]
  
-            if not all([count, last_time]):
+            if not all([count, last_time_sec, last_time_usec]):
                 raise KeyError
  
-            count, last_time = float(count), float(last_time)
+            count, last_time_sec, last_time_usec = float(count), float(last_time_sec), float(last_time_usec)
  
             # if one second has passed since last reset, reset the count and time.
-            if now - last_time > 1:
-                redis_client.hmset(project_id, {'c': 0.0, 't': now})
+            if now_sec - last_time_sec > 1:
+                redis_client.hmset(project_id, {'c': 0.0, 't_s': now_sec, 't_us': now_usec})
  
+            elif (now_sec - last_time_sec == 1) and (now_usec > last_time_usec):
+                redis_client.hmset(project_id, {'c': 0.0, 't_s': now_sec, 't_us': now_usec})
+
             else:
                 if count + 1 >= rate.limit:
                     raise HardLimitError()
                 else:
                     # just update the count, keep the counting-start time intact
-                    redis_client.hmset(project_id, {'c': count + 1, 't': last_time})
+                    redis_client.hmset(project_id, {'c': count + 1, 't_s': last_time_sec, 't_us': last_time_usec})
  
         except KeyError:
-            redis_client.hmset(project_id, {'c': 0.0, 't': now})
+            redis_client.hmset(project_id, {'c': 0.0, 't_s': now_sec, 't_us': now_usec})
  
         except redis.exceptions.ConnectionError as ex:
             message = _('Redis Error:{exception} for Project-ID:{project_id}')
