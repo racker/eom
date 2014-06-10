@@ -6,7 +6,7 @@ import socket
 
 OPT_GROUP_NAME = 'eom:statsd'
 OPTIONS = [
-    cfg.StrOpt('statsd_address',
+    cfg.StrOpt('address',
                help='host:port for statsd server.',
                required=True),
     cfg.ListOpt('path_regexes_keys',
@@ -16,18 +16,23 @@ OPTIONS = [
     cfg.ListOpt('path_regexes_values',
                 help='regexes for the paths of the WSGI app',
                 required=False)
+
+    cfg.StrOpt("prefix",
+               help="Prefix for graphite metrics",
+               required=False)
 ]
 
 def wrap(app):
     conf = cfg.CONF
     conf.register_opts(OPTIONS, group=OPT_GROUP_NAME)
-    addr = conf[OPT_GROUP_NAME].statsd_address or 'localhost'
+    addr = conf[OPT_GROUP_NAME].address or 'localhost'
     keys = conf[OPT_GROUP_NAME].path_regexes_keys or []
     values = conf[OPT_GROUP_NAME].path_regexes_values or []
+    prefix = conf[OPT_GROUP_NAME].prefix or ""
 
     regex_strings = zip(keys, values)
 
-    client = StatsClient(addr)
+    client = StatsClient(addr, prefix=prefix)
 
 
     # initialize buckets
@@ -40,19 +45,6 @@ def wrap(app):
 
     def middleware(env, start_response):
 
-        def _start_response(status, headers, *args):
-            status_code = int(status[:3])
-            if status_code / 500 == 1:
-                client.incr("marconi."+hostname+".requests."+request_method+"."+api_method+".5xx")
-            elif status_code / 400 == 1:
-                client.incr("marconi."+hostname+".requests."+request_method+"."+api_method+".4xx")
-            elif status_code / 200 == 1:
-                client.incr("marconi."+hostname+".requests."+request_method+"."+api_method+".2xx")
-
-            #client.incr("marconi."+hostname+".requests."+request_method+"."+api_method)
-
-            return start_response(status, headers, *args)
-
         request_method = env["REQUEST_METHOD"]
         path = env["PATH_INFO"]
         hostname = socket.gethostname()
@@ -62,6 +54,22 @@ def wrap(app):
             regex = re.compile(pattern)
             if regex.match(path):
                 api_method = method
+
+        def _start_response(status, headers, *args):
+            status_path = "marconi." + hostname + ".requests." + request_method + "." + api_method
+            status_code = int(status[:3])
+            if status_code / 500 == 1:
+                client.incr(status_path + ".5xx")
+            elif status_code / 400 == 1:
+                client.incr(status_path + ".4xx")
+            elif status_code / 200 == 1:
+                client.incr(status_path + ".2xx")
+
+            #client.incr("marconi."+hostname+".requests."+request_method+"."+api_method)
+
+            return start_response(status, headers, *args)
+
+
 
         start = time.time() * 1000
         response = app(env, _start_response)
