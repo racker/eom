@@ -123,8 +123,8 @@ class TestGovernor(tests.util.TestCase):
 
     def setUp(self):
         super(TestGovernor, self).setUp()
-        redis_client = fakeredis_connection()
-        # redis_client = realredis_connection()
+        # redis_client = fakeredis_connection()
+        redis_client = realredis_connection()
         self.governor = governor.wrap(tests.util.app, redis_client)
 
         config = governor.CONF['eom:governor']

@@ -134,15 +134,14 @@ def _create_limiter(redis_client):
 
     def calc_sleep(project_id, rate):
         count = 0.0
-
+    
         try:
             now_sec, now_usec = redis_client.execute_command("TIME")
 
             (count,
                 last_time_sec,
-                last_time_usec) = [key for key in
-                                   redis_client.hmget(project_id,
-                                                      'c', 't_s', 't_us')]
+                last_time_usec) = redis_client.hmget(project_id, 
+                                                     'c', 't_s', 't_us')
 
             if not all([count, last_time_sec, last_time_usec]):
                 raise KeyError
@@ -164,7 +163,14 @@ def _create_limiter(redis_client):
 
             else:
                 if count + 1 >= rate.limit:
+                    if now_sec - last_time_sec < 1:
+                        sleepTime = float(now_usec - last_time_usec) / 1000000
+                    else:
+                        sleepTime = 1 - float(now_usec - last_time_usec) / 1000000
+
+                    time.sleep(sleepTime)
                     raise HardLimitError()
+                    
                 else:
                     # just update the count, keep the counting-start time
                     # intact
