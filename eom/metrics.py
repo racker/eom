@@ -15,7 +15,7 @@ OPTIONS = [
 
     cfg.ListOpt('path_regexes_values',
                 help='regexes for the paths of the WSGI app',
-                required=False)
+                required=False),
 
     cfg.StrOpt("prefix",
                help="Prefix for graphite metrics",
@@ -31,6 +31,9 @@ def wrap(app):
     prefix = conf[OPT_GROUP_NAME].prefix or ""
 
     regex_strings = zip(keys, values)
+    regex = []
+    for (method, pattern) in regex_strings:
+        regex.append((method, re.compile(pattern)))
 
     client = StatsClient(addr, prefix=prefix)
 
@@ -50,9 +53,8 @@ def wrap(app):
         hostname = socket.gethostname()
         api_method = "unknown"
 
-        for (method, pattern) in regex_strings:
-            regex = re.compile(pattern)
-            if regex.match(path):
+        for (method, regex_pattern) in regex:
+            if regex_pattern.match(path):
                 api_method = method
 
         def _start_response(status, headers, *args):
