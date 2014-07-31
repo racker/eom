@@ -40,7 +40,7 @@ def wrap(app):
 
     # initialize buckets
     for request_method in ["GET", "PUT", "HEAD", "POST", "DELETE", "PATCH"]:
-        for name, regex in regex_strings:
+        for name, regexstr in regex_strings:
             for code in ["2xx", "4xx", "5xx"]:
                 client.incr("marconi."+socket.gethostname()+".requests."+request_method+"."+name+"."+code)
                 client.decr("marconi."+socket.gethostname()+".requests."+request_method+"."+name+"."+code)
