@@ -258,7 +258,7 @@ def validate_client(redis_client, url, tenant, token, env, region):
         env['HTTP_X_ROLES'] = access_info.role_names
         if access_info.has_service_catalog():
             env['HTTP_X_SERVICE_CATALOG'] = \
-                access_info.service_catalog.catalog
+                json.dumps(access_info.service_catalog.catalog)
 
         # Project Scoped V3 or Tenant Scoped v2
         # This can be assumed since we validated using X_PROJECT_ID
