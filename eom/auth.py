@@ -52,7 +52,7 @@ class UnknownAuthenticationDataVersion(Exception):
     pass
 
 
-def tuple_to_cache_key(t):
+def _tuple_to_cache_key(t):
     """Convert a tuple to a cache key
     """
     key = '(%(s_data))' % {
@@ -61,7 +61,7 @@ def tuple_to_cache_key(t):
     return key
 
 
-def send_data_to_cache(redis_client, url, access_info):
+def _send_data_to_cache(redis_client, url, access_info):
     """Stores the authentication data to memcache
 
     :param redis_client: redis.Redis object connected to the redis cache
@@ -82,7 +82,7 @@ def send_data_to_cache(redis_client, url, access_info):
 
         # Guild the cache key and store the value
         # Use the token's expiration time for the cache expiration
-        cache_key = tuple_to_cache_key((tenant, token, url))
+        cache_key = _tuple_to_cache_key((tenant, token, url))
         redis_client.set(cache_key, cache_data)
         redis_client.pexpire(cache_key, access_info.expires)
         
@@ -92,7 +92,7 @@ def send_data_to_cache(redis_client, url, access_info):
         return False
 
 
-def retrieve_data_from_cache(redis_client, url, tenant, token):
+def _retrieve_data_from_cache(redis_client, url, tenant, token):
     """Retrieve the authentication data from memcache
 
     :param redis_client: redis.Redis object connected to the redis cache
@@ -105,7 +105,7 @@ def retrieve_data_from_cache(redis_client, url, tenant, token):
     try:
         # Try to get the data from the cache
         cache_key_tuple = (tenant, token, url)
-        cache_key = tuple_to_cache_key((tenant, token, url))
+        cache_key = _tuple_to_cache_key((tenant, token, url))
         cached_data = redis_client.get(cache_key)
 
         if cached_data is not None:
@@ -149,8 +149,8 @@ def retrieve_data_from_cache(redis_client, url, tenant, token):
         # Error while accessing redis
         return None
 
-
-def retrieve_data_from_keystone(redis_client, url, tenant, token):
+_
+def _retrieve_data_from_keystone(redis_client, url, tenant, token):
     """Retrieve the authentication data from OpenStack Keystone
 
     :param redis_client: redis.Redis object connected to the redis cache
@@ -179,7 +179,7 @@ def retrieve_data_from_keystone(redis_client, url, tenant, token):
             auth_url=url, tenant_id=tenant, token=token)
 
         # cache the data so it is easier to access next time
-        send_data_to_cache(redis_client, url, access_info)
+        _send_data_to_cache(redis_client, url, access_info)
 
         return access_info
 
@@ -193,7 +193,7 @@ def retrieve_data_from_keystone(redis_client, url, tenant, token):
         return None
 
 
-def get_access_info(redis_client, url, tenant, token):
+def _get_access_info(redis_client, url, tenant, token):
     """Retrieve the access information regarding the specified user
 
     :param redis_client: redis.Redis object connected to the redis cache
@@ -206,7 +206,7 @@ def get_access_info(redis_client, url, tenant, token):
     """
 
     # Check cache
-    access_info =  retrieve_data_from_cache(redis_client,
+    access_info =  _retrieve_data_from_cache(redis_client,
                                             url,
                                             tenant,
                                             token)
@@ -214,7 +214,7 @@ def get_access_info(redis_client, url, tenant, token):
     # Check if we failed to get it from the cache and
     # retrieve from keystone instead
     if access_info is None:
-        access_info = retrieve_data_from_keystone(redis_client,
+        access_info = _retrieve_data_from_keystone(redis_client,
                                                   url,
                                                   tenant,
                                                   token)
@@ -230,7 +230,7 @@ def get_access_info(redis_client, url, tenant, token):
     return access_info
 
 
-def validate_client(redis_client, url, tenant, token, env, region):
+def _validate_client(redis_client, url, tenant, token, env, region):
     """Retrieve the access information for the user and update
     env with the appropriate values
 
@@ -244,7 +244,7 @@ def validate_client(redis_client, url, tenant, token, env, region):
     """
     try:
         # Try to get the client's access infomration
-        access_info = get_access_info(redis_client, url, tenant, token, env)
+        access_info = _get_access_info(redis_client, url, tenant, token, env)
         if access_info is None:
             return False
 
@@ -274,7 +274,7 @@ def validate_client(redis_client, url, tenant, token, env, region):
 
         # Project-Scoped V3 - X_PROJECT_NAME is only unique
         # within the domain
-        if access_info.project_scoped and
+        if access_info.project_scoped and \
             access_info.domain_scoped:
             env['HTTP_X_PROJECT_DOMAIN_ID'] = access_info.project_domain_id
             env['HTTP_X_PROJECT_DOMAIN_NAME'] = access_info.project_domain_name
@@ -308,7 +308,7 @@ def wrap(app, redis_client):
         tenant = env['HTTP_X_PROJECT_ID']
 
         # validate the client and fill out the environment it's valid
-        if validate_client(redis_client, auth_url, tenant, token, env, region):
+        if _validate_client(redis_client, auth_url, tenant, token, env, region):
             LOG.debug(_('Auth Token validated.'))
             return app(env, start_response)
 
