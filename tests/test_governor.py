@@ -26,6 +26,7 @@ from wsgiref import simple_server
 
 import ddt
 import fakeredis
+from eom.utils import redis_pool
 import requests
 
 from eom import governor
@@ -89,6 +90,9 @@ def make_rate(limit, methods=None,
 def fakeredis_connection():
     return fakeredis.FakeRedis()
 
+def realredis_connection():
+    return redis_pool.get_client()
+
 
 class DTuple(tuple):
     pass
@@ -119,7 +123,8 @@ class TestGovernor(tests.util.TestCase):
 
     def setUp(self):
         super(TestGovernor, self).setUp()
-        redis_client = fakeredis_connection()
+        # redis_client = fakeredis_connection()
+        redis_client = realredis_connection()
         self.governor = governor.wrap(tests.util.app, redis_client)
 
         config = governor.CONF['eom:governor']
@@ -198,16 +203,19 @@ class TestGovernor(tests.util.TestCase):
 
     def test_limiter_raises_if_over_limit(self):
         call = lambda: self.limiter(1, self.test_rate)
-        [call() for _ in range(self.limit + 1)]
+        [call() for _ in range(self.limit)]
         self.assertRaises(governor.HardLimitError, call)
 
     def test_limit_reached_no_429(self):
+        time.sleep(1)
         self._test_limit(self.default_rate.limit, 204)
 
     def test_limit_surpassed_leads_to_429(self):
-        self._test_limit(self.default_rate.limit + 3, 429)
+        time.sleep(1)
+        self._test_limit(self.default_rate.limit + 1, 429)
 
     def test_draining_evades_429(self):
+        time.sleep(1)
         self._test_draining(self.default_rate.limit + 3, 204)
 
     #----------------------------------------------------------------------
@@ -232,6 +240,6 @@ class TestGovernor(tests.util.TestCase):
             url = 'http://%s:%s' % (host, port) + self.test_url
             call = lambda: request(url, headers={'X-Project-ID': 1234})
             [call().status_code for _ in range(limit // 2)]
-            time.sleep(0.5)
+            time.sleep(0.8)
             resp = [call().status_code for _ in range(limit // 2)][-1]
             self.assertEqual(resp, expected_status)

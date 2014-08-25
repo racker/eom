@@ -133,32 +133,61 @@ def _create_limiter(redis_client):
     """Creates a closure with the given params for convenience and perf."""
 
     def calc_sleep(project_id, rate):
-        now = time.time()
-        count = 1.0
-
+        count = 0.0
+    
         try:
-            count, last_time = [key for key in
-                                redis_client.hmget(project_id, 'c', 't')]
+            now_sec, now_usec = redis_client.execute_command("TIME")
 
-            if not all([count, last_time]):
+            (count,
+                last_time_sec,
+                last_time_usec) = redis_client.hmget(project_id, 
+                                                     'c', 't_s', 't_us')
+
+            if not all([count, last_time_sec, last_time_usec]):
                 raise KeyError
 
-            count, last_time = float(count), float(last_time)
+            count, last_time_sec, last_time_usec = float(
+                count), float(last_time_sec), float(last_time_usec)
 
-            drain = (now - last_time) * rate.drain_velocity
-            # note(cabrera): disallow negative counts, increment inline
-            new_count = max(0.0, count - drain) + 1.0
-            redis_client.hmset(project_id, {'c': new_count, 't': now})
+            # if one second has passed since last reset, reset the count and
+            # time.
+            if now_sec - last_time_sec > 1:
+                redis_client.hmset(
+                    project_id, {
+                        'c': 0.0, 't_s': now_sec, 't_us': now_usec})
+
+            elif now_sec - last_time_sec == 1 and now_usec > last_time_usec:
+                redis_client.hmset(
+                    project_id, {
+                        'c': 0.0, 't_s': now_sec, 't_us': now_usec})
+
+            else:
+                if count + 1 >= rate.limit:
+                    if now_sec - last_time_sec < 1:
+                        sleepTime = float(now_usec - last_time_usec) / 1000000
+                    else:
+                        sleepTime = 1 - float(now_usec - last_time_usec) / 1000000
+
+                    time.sleep(sleepTime)
+                    raise HardLimitError()
+                    
+                else:
+                    # just update the count, keep the counting-start time
+                    # intact
+                    redis_client.hmset(
+                        project_id, {
+                            'c': count + 1,
+                            't_s': last_time_sec,
+                            't_us': last_time_usec})
 
         except KeyError:
-            redis_client.hmset(project_id, {'c': 1.0, 't': now})
+            redis_client.hmset(
+                project_id, {
+                    'c': 0.0, 't_s': now_sec, 't_us': now_usec})
 
         except redis.exceptions.ConnectionError as ex:
             message = _('Redis Error:{exception} for Project-ID:{project_id}')
             LOG.warn((message.format(exception=ex, project_id=project_id)))
-
-        if count > rate.limit:
-            raise HardLimitError()
 
     return calc_sleep
 
@@ -234,8 +263,6 @@ def wrap(app, redis_client):
             message = _('Hit limit of {rate} per sec. for '
                         'project {project_id} according to '
                         'rate rule "{name}"')
-
-            time.sleep(throttle_milliseconds)
 
             LOG.warn(message.format(rate=rate.limit,
                                     project_id=project_id,
