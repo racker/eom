@@ -1,3 +1,11 @@
+[eom:auth]
+auth_url = 'keystone.example.com/v2'
+region = 'mydatacenter'
+
+[eom:auth_redis]
+host = 127.0.0.1
+port = 6379
+
 [eom:rbac]
 acls_file = rbac.json-sample
 
