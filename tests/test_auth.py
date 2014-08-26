@@ -219,6 +219,16 @@ class TestAuth(util.TestCase):
                                                              token)
         self.assertIsNone(invalid_cached_data)
 
+        # Test: Redis Client tosses exception
+        def redis_toss_exception(*args, **kwargs):
+            raise Exception('mock redis exception')
+
+        redis_exception_result = auth._retrieve_data_from_cache(redis_toss_exception,
+                                                         url,
+                                                         tenant_id,
+                                                         token)
+        self.assertEqual(redis_exception_result, None)
+
         # Base64 Decoding Error
         with mock.patch(
                 'base64.b64decode') as MockBase64:

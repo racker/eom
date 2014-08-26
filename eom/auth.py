@@ -96,7 +96,7 @@ def _send_data_to_cache(redis_client, url, access_info):
         tenant = access_info.tenant_id
         token = access_info.auth_token
 
-        # Guild the cache key and store the value
+        # Build the cache key and store the value
         # Use the token's expiration time for the cache expiration
         cache_key = _tuple_to_cache_key((tenant, token, url))
         redis_client.set(cache_key, cache_data_b64)
@@ -122,10 +122,15 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
 
     :returns: a keystoneclient.access.AccessInfo on success or None
     """
-    # Try to get the data from the cache
-    cache_key_tuple = (tenant, token, url)
-    cache_key = _tuple_to_cache_key(cache_key_tuple)
-    cached_data = redis_client.get(cache_key)
+
+    cached_data = None
+    try:
+        # Try to get the data from the cache
+        cache_key_tuple = (tenant, token, url)
+        cache_key = _tuple_to_cache_key(cache_key_tuple)
+        cached_data = redis_client.get(cache_key)
+    except Exception:
+        return None
 
     if cached_data is not None:
         # So 'data' can be used in the exception handler...
