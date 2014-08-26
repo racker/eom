@@ -122,7 +122,6 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
 
     :returns: a keystoneclient.access.AccessInfo on success or None
     """
-
     cached_data = None
     try:
         # Try to get the data from the cache
@@ -130,6 +129,9 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
         cache_key = _tuple_to_cache_key(cache_key_tuple)
         cached_data = redis_client.get(cache_key)
     except Exception:
+        LOG.debug(_('Failed to retrieve data to cache for key %(s_key)s') % {
+            's_key': cache_key
+        })
         return None
 
     if cached_data is not None:
@@ -181,6 +183,9 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
             return None
 
     else:
+        LOG.debug(_('No data in cache for key %(s_key)s') % {
+            's_key': cache_key
+        })
         # It wasn't cached
         return None
 
@@ -288,9 +293,12 @@ def _validate_client(redis_client, url, tenant, token, env, region):
     """
     try:
         # Try to get the client's access infomration
-        access_info = _get_access_info(redis_client, url, tenant, token, env)
+        access_info = _get_access_info(redis_client, url, tenant, token)
 
         if access_info is None:
+            LOG.debug(_('Unable to get Access information for %(s_tenant)s') % {
+                's_tenant': tenant
+            })
             return False
 
         # provided data was valid, insert the information into the environment
@@ -334,9 +342,10 @@ def _validate_client(redis_client, url, tenant, token, env, region):
 
         return True
 
-    except Exception:
-        msg = _('Error while trying to authenticate against %(s_url)s') % {
-            's_url': url
+    except Exception as ex:
+        msg = _('Error while trying to authenticate against %(s_url)s - %(s_except)s') % {
+            's_url': url,
+            's_except': str(ex)
         }
         LOG.debug(msg)
         return False
@@ -363,6 +372,7 @@ def wrap(app, redis_client):
     auth_url = group['auth_url']
     region = group['region']
 
+    LOG.debug('Auth URL: {0:}'.format(auth_url))
     # WSGI callable
     def middleware(env, start_response):
         try:
