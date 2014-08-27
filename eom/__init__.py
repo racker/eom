@@ -15,7 +15,11 @@
 # limitations under the License.
 
 import gettext
+import six
 
 __version__ = '0.2.0'
 
-gettext.install('eom', unicode=1)
+if six.PY2:
+    gettext.install('eom', unicode=1)
+else:
+    gettext.install('eom')

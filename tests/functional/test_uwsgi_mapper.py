@@ -21,6 +21,7 @@ import tempfile
 import time
 
 import requests
+import six
 from testtools import testcase
 
 from tests import util
@@ -82,13 +83,13 @@ class TestUwsgiMapper(util.TestCase):
         # independent and avoids introducing files into our
         # repository.
         self.map_file = tempfile.NamedTemporaryFile()
-        self.map_file.write(MAP_CONTENTS)
+        self.map_file.write(six.b(MAP_CONTENTS))
 
         self.conf_file = tempfile.NamedTemporaryFile()
-        self.conf_file.write(CONF_CONTENTS.format(self.map_file.name))
+        self.conf_file.write(six.b(CONF_CONTENTS.format(self.map_file.name)))
 
         self.app_file = tempfile.NamedTemporaryFile()
-        self.app_file.write(APP_CONTENTS.format(self.conf_file.name))
+        self.app_file.write(six.b(APP_CONTENTS.format(self.conf_file.name)))
 
         # NOTE(cabrera): Prepare the files to be read in by the uwsgi
         # process. This is necessary because child processes inherit
