@@ -92,8 +92,8 @@ class Rate(object):
             else None
         )
 
-        self.limit = int(document['limit'])
-        self.drain_velocity = int(document['drain_velocity'])
+        self.limit = document['limit']
+        self.drain_velocity = document['drain_velocity']
 
 
 class HardLimitError(Exception):
@@ -134,7 +134,7 @@ def _create_limiter(redis_client):
 
     def calc_sleep(project_id, rate):
         now = time.time()
-        count = float(1.0)
+        count = 1.0
 
         try:
             count, last_time = [key for key in

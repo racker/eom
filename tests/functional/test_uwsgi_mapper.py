@@ -82,7 +82,7 @@ class TestUwsgiMapper(util.TestCase):
         # files and the application. This makes testing directory
         # independent and avoids introducing files into our
         # repository.
-        # NOTE(BenjamenMeyer): Ensure they are text files
+        # NOTE(BenjamenMeyer): Tests seem to fail without the w+ parameter
         self.map_file = tempfile.NamedTemporaryFile(mode='w+')
         self.map_file.write(six.u(MAP_CONTENTS))
 
@@ -144,7 +144,8 @@ class TestUwsgiMapper(util.TestCase):
 
         loglines = self._get_uwsgi_response()
         project = headers.get('X-Project-Id') if headers else None
-        self.assertIn(six.b('[TEST-TEMPVARS]: {0}'.format(project)), loglines)
+        self.assertIn(six.b('[TEST-TEMPVARS]: {0}'.format(project)),
+                      loglines)
 
     def test_map_logs_project_when_given(self):
         self._expect({'X-Project-Id': 1234})
