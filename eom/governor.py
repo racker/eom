@@ -22,7 +22,7 @@ import time
 from oslo.config import cfg
 import redis
 import simplejson as json
-from six.moves import filter
+import six
 
 
 CONF = cfg.CONF
@@ -192,7 +192,7 @@ def match_rate(project, method, route, project_rates, general_rates):
 
     try:
         matcher = lambda r: applies_to(r, method, route)
-        return next(filter(matcher, general_rates))
+        return next(six.moves.filter(matcher, general_rates))
     except StopIteration:
         return None
 

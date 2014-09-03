@@ -3,7 +3,7 @@ import socket
 import time
 
 from oslo.config import cfg
-from statsd import StatsClient
+import statsd
 
 OPT_GROUP_NAME = 'eom:statsd'
 OPTIONS = [
@@ -37,7 +37,7 @@ def wrap(app):
     for (method, pattern) in regex_strings:
         regex.append((method, re.compile(pattern)))
 
-    client = StatsClient(addr, prefix=prefix)
+    client = statsd.StatsClient(addr, prefix=prefix)
 
     # initialize buckets
     for request_method in ["GET", "PUT", "HEAD", "POST", "DELETE", "PATCH"]:
