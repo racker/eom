@@ -192,7 +192,8 @@ def match_rate(project, method, route, project_rates, general_rates):
 
     try:
         matcher = lambda r: applies_to(r, method, route)
-        return next(six.moves.filter(matcher, general_rates))
+        return next(six.moves.filter(matcher,
+                                     general_rates))
     except StopIteration:
         return None
 
