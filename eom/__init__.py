@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import gettext
+
 import six
 
 __version__ = '0.2.0'

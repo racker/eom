@@ -15,14 +15,14 @@
 # limitations under the License.
 
 from __future__ import division
-import itertools
 import logging
 import re
 import time
 
 from oslo.config import cfg
-import simplejson as json
 import redis
+import simplejson as json
+from six.moves import filter
 
 
 CONF = cfg.CONF
@@ -92,8 +92,8 @@ class Rate(object):
             else None
         )
 
-        self.limit = document['limit']
-        self.drain_velocity = document['drain_velocity']
+        self.limit = int(document['limit'])
+        self.drain_velocity = int(document['drain_velocity'])
 
 
 class HardLimitError(Exception):
@@ -134,11 +134,17 @@ def _create_limiter(redis_client):
 
     def calc_sleep(project_id, rate):
         now = time.time()
-        count = 1.0
+        count = float(1.0)
 
         try:
             count, last_time = [key for key in
                                 redis_client.hmget(project_id, 'c', 't')]
+
+            if count is None:
+                count = float(1.0)
+
+            if last_time is None:
+                last_time = now
 
             if not all([count, last_time]):
                 raise KeyError
@@ -186,8 +192,7 @@ def match_rate(project, method, route, project_rates, general_rates):
 
     try:
         matcher = lambda r: applies_to(r, method, route)
-        return next(itertools.ifilter(matcher,
-                                      general_rates))
+        return next(filter(matcher, general_rates))
     except StopIteration:
         return None
 
@@ -202,6 +207,8 @@ def wrap(app, redis_client):
     :returns: a new WSGI app that wraps the original
     """
     group = CONF[GOV_GROUP_NAME]
+    for k in group.keys():
+        LOG.debug('key: {0:} - {1:}'.format(k, group[k]))
 
     rates_path = group['rates_file']
     project_rates_path = group['project_rates_file']
