@@ -82,14 +82,15 @@ class TestUwsgiMapper(util.TestCase):
         # files and the application. This makes testing directory
         # independent and avoids introducing files into our
         # repository.
-        self.map_file = tempfile.NamedTemporaryFile()
-        self.map_file.write(six.b(MAP_CONTENTS))
+        # NOTE(BenjamenMeyer): Ensure they are text files
+        self.map_file = tempfile.NamedTemporaryFile(mode='w+')
+        self.map_file.write(six.u(MAP_CONTENTS))
 
-        self.conf_file = tempfile.NamedTemporaryFile()
-        self.conf_file.write(six.b(CONF_CONTENTS.format(self.map_file.name)))
+        self.conf_file = tempfile.NamedTemporaryFile(mode='w+')
+        self.conf_file.write(six.u(CONF_CONTENTS.format(self.map_file.name)))
 
-        self.app_file = tempfile.NamedTemporaryFile()
-        self.app_file.write(six.b(APP_CONTENTS.format(self.conf_file.name)))
+        self.app_file = tempfile.NamedTemporaryFile(mode='w+')
+        self.app_file.write(six.u(APP_CONTENTS.format(self.conf_file.name)))
 
         # NOTE(cabrera): Prepare the files to be read in by the uwsgi
         # process. This is necessary because child processes inherit
@@ -143,8 +144,7 @@ class TestUwsgiMapper(util.TestCase):
 
         loglines = self._get_uwsgi_response()
         project = headers.get('X-Project-Id') if headers else None
-        self.assertIn('[TEST-TEMPVARS]: {0}'.format(project),
-                      loglines)
+        self.assertIn(six.b('[TEST-TEMPVARS]: {0}'.format(project)), loglines)
 
     def test_map_logs_project_when_given(self):
         self._expect({'X-Project-Id': 1234})
