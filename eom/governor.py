@@ -207,8 +207,6 @@ def wrap(app, redis_client):
     :returns: a new WSGI app that wraps the original
     """
     group = CONF[GOV_GROUP_NAME]
-    for k in group.keys():
-        LOG.debug('key: {0:} - {1:}'.format(k, group[k]))
 
     rates_path = group['rates_file']
     project_rates_path = group['project_rates_file']
