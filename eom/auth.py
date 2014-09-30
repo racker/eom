@@ -16,11 +16,13 @@
 
 import base64
 import binascii
+import functools
 import logging
 
 import keystoneclient.access as keystone_access
 import keystoneclient.exceptions
 from keystoneclient.v2_0 import client as keystonev2_client
+import msgpack
 from oslo.config import cfg
 import redis
 import simplejson as json
@@ -75,8 +77,11 @@ def _tuple_to_cache_key(t):
     return key
 
 
+__packer = msgpack.Packer(encoding='utf-8', use_bin_type=True)
+__unpacker = functools.partial(msgpack.unpackb, encoding='utf-8')
+
 def _send_data_to_cache(redis_client, url, access_info):
-    """Stores the authentication data to memcache
+    """Stores the authentication data to cache
 
     :param redis_client: redis.Redis object connected to the redis cache
     :param url: URL used for authentication
@@ -86,12 +91,8 @@ def _send_data_to_cache(redis_client, url, access_info):
     :returns: True on success, otherwise False
     """
     try:
-        # Convert the access_info dictionary into a string for storage
-        data = {}
-        data.update(access_info)
-        cache_data = json.dumps(data)
-        cache_data_utf8 = cache_data.encode(encoding='utf-8', errors='strict')
-        cache_data_b64 = base64.b64encode(cache_data_utf8)
+        # Convert the storable format
+        cache_data = __packer.pack(access_info)
 
         tenant = access_info.tenant_id
         token = access_info.auth_token
@@ -99,7 +100,7 @@ def _send_data_to_cache(redis_client, url, access_info):
         # Build the cache key and store the value
         # Use the token's expiration time for the cache expiration
         cache_key = _tuple_to_cache_key((tenant, token, url))
-        redis_client.set(cache_key, cache_data_b64)
+        redis_client.set(cache_key, cache_data)
         redis_client.pexpire(cache_key, access_info.expires)
 
         return True
@@ -113,7 +114,7 @@ def _send_data_to_cache(redis_client, url, access_info):
 
 
 def _retrieve_data_from_cache(redis_client, url, tenant, token):
-    """Retrieve the authentication data from memcache
+    """Retrieve the authentication data from cache
 
     :param redis_client: redis.Redis object connected to the redis cache
     :param url: URL used for authentication
@@ -137,40 +138,10 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
     if cached_data is not None:
         # So 'data' can be used in the exception handler...
         data = None
+
         try:
-            # Convert the stored dictionary as a string back to a
-            # dictionary
-            cached_data_utf8 = base64.b64decode(cached_data)
-            data = json.loads(cached_data_utf8)
-
-            # Check the data's version field to determine which version of
-            # the access information object we should instantiate
-            if data['version'] == 'v2.0':
-                # Keystone v2 data
-                return keystone_access.AccessInfoV2(data)
-
-            elif data['version'] == 'v3.0':
-                # Keystone V3 data
-                return keystone_access.AccessInfoV3(data)
-
-            else:
-                # Don't know what it is.
-                # Did keystone release a new version?
-                msg = _('Access Version (%(s_version)s) Unknown.') % {
-                    's_version': data['version']
-                }
-                LOG.error(msg)
-                return None
-
-        except binascii.Error:
-            msg = ('Unable to decode the stored Base64 data')
-            LOG.error(msg)
-            return None
-
-        except json.JSONDecodeError:
-            msg = ('Unable to decode the stored JSON data')
-            LOG.error(msg)
-            return None
+            data = __unpacker(cached_data)
+            return data
 
         except Exception as ex:
             # The cached object didn't match what we expected
@@ -181,7 +152,6 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
             }
             LOG.error(msg)
             return None
-
     else:
         LOG.debug(_('No data in cache for key %(s_key)s') % {
             's_key': cache_key

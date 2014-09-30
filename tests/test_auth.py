@@ -16,7 +16,6 @@
 
 from __future__ import division
 import base64
-import binascii
 import logging
 from wsgiref import simple_server
 
@@ -24,6 +23,7 @@ import fakeredis
 from keystoneclient import access
 import keystoneclient.exceptions
 import mock
+import msgpack.exceptions
 import simplejson as json
 
 from eom import auth
@@ -140,32 +140,7 @@ class TestAuth(util.TestCase):
 
         # The data that will get cached
         access_data = fake_catalog(tenant_id, token)
-
-        # Encode a version of the data for verification tests later
-        data = {}
-        data.update(access_data)
-        access_data_utf8 = json.dumps(data).encode(encoding='utf-8',
-                                                   errors='strict')
-        access_data_b64 = base64.b64encode(access_data_utf8)
-
-        # JSON Encoding Error
-        with mock.patch(
-                'simplejson.dumps') as MockJsonEncode:
-            MockJsonEncode.side_effect = ValueError('json encoding error')
-            json_encode_error = auth._send_data_to_cache(redis_client,
-                                                         url,
-                                                         access_data)
-            self.assertFalse(json_encode_error)
-
-        # Base64 Encoding Error
-        with mock.patch(
-                'base64.b64encode') as MockBase64:
-            MockBase64.side_effect = binascii.Error(
-                'mock base64 encode failure')
-            b64_error = auth._send_data_to_cache(redis_client,
-                                                 url,
-                                                 access_data)
-            self.assertFalse(b64_error)
+        packed_data = msgpack.packb(access_data, use_bin_type=True, encoding='utf-8')
 
         # Redis fails the expiration time
         with mock.patch(
@@ -191,10 +166,9 @@ class TestAuth(util.TestCase):
         self.assertTrue(store_result)
         stored_data = redis_client.get(key_value)
         self.assertIsNotNone(stored_data)
-        self.assertEqual(stored_data, access_data_b64)
-        stored_data_utf8 = base64.b64decode(stored_data)
-        self.assertEqual(stored_data_utf8, access_data_utf8)
-        stored_data_original = json.loads(stored_data_utf8)
+        self.assertEqual(stored_data, packed_data)
+        stored_data_original = msgpack.unpackb(stored_data, encoding='utf-8')
+
         self.assertEqual(stored_data_original, access_data)
 
     def test_retrieve_cache_data(self):
@@ -205,11 +179,10 @@ class TestAuth(util.TestCase):
         key_value = auth._tuple_to_cache_key(key_data)
 
         data = fake_catalog(tenant_id, token)
-        data_utf8 = json.dumps(data).encode(encoding='utf-8', errors='strict')
-        data_b64 = base64.b64encode(data_utf8)
+        data_packed = msgpack.packb(data, encoding='utf-8', use_bin_type=True)
 
         redis_client = fakeredis_connection()
-        self.assertTrue(redis_client.set(key_value, data_b64))
+        self.assertTrue(redis_client.set(key_value, data_packed))
 
         # Invalid Cache Error
         # - we use a random url for the cache conflict portion
@@ -229,46 +202,21 @@ class TestAuth(util.TestCase):
                                                          token)
         self.assertEqual(redis_exception_result, None)
 
-        # Base64 Decoding Error
-        with mock.patch(
-                'base64.b64decode') as MockBase64:
-            MockBase64.side_effect = binascii.Error(
-                'mock base64 decode failure')
-            b64_error = auth._retrieve_data_from_cache(redis_client,
-                                                       url,
-                                                       tenant_id, token)
-            self.assertIsNone(b64_error)
-
-        # JSON Decoding Error
-        with mock.patch(
-                'simplejson.loads') as MockJsonDecode:
-            MockJsonDecode.side_effect = json.JSONDecodeError
-            json_decode_error = auth._retrieve_data_from_cache(redis_client,
-                                                               url,
-                                                               tenant_id,
-                                                               token)
-            self.assertIsNone(json_decode_error)
-
-        # Object Creation Error
-        with mock.patch(
-                'keystoneclient.access.AccessInfoV2') as MockAccessV2:
-            MockAccessV2.side_effect = Exception(
-                'mock keystoneclient.access.AccessInfoV2 exception')
-            accessv2_error = auth._retrieve_data_from_cache(redis_client,
-                                                            url,
-                                                            tenant_id,
-                                                            token)
-            self.assertIsNone(accessv2_error)
+        # msgpack error
+        with mock.patch('eom.auth.__unpacker') as MockMsgPacker:
+            MockMsgPacker.side_effect = msgpack.exceptions.UnpackException(
+                'mock')
+            msgpack_error = auth._retrieve_data_from_cache(redis_client,
+                                                           url,
+                                                           tenant_id, token)
+            self.assertIsNone(msgpack_error)
 
         # Test: Happy case V2 data
-        with mock.patch(
-                'keystoneclient.access.AccessInfoV2') as MockAccessV2:
-            MockAccessV2.return_value = 'good'
-            happy_v2_result = auth._retrieve_data_from_cache(redis_client,
-                                                             url,
-                                                             tenant_id,
-                                                             token)
-            self.assertEqual(happy_v2_result, 'good')
+        happy_v2_result = auth._retrieve_data_from_cache(redis_client,
+                                                         url,
+                                                         tenant_id,
+                                                         token)
+        self.assertEqual(happy_v2_result, data)
 
     def test_retrieve_keystone_bad_client(self):
         url = 'myurl'
