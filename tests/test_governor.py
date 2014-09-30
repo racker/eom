@@ -42,10 +42,10 @@ def _suppress_logging():
     requests_log = logging.getLogger("requests")
     rlevel = requests_log.level
     requests_log.setLevel(logging.WARNING)
-    if six.PY2:
-        stdtmp, sys.stderr = sys.stderr, io.BytesIO()  # Suppress logging
-    else:
-        stdtmp, sys.stderr = sys.stderr, io.StringIO()  # Suppress logging
+
+    # Suppress logging
+    stdtmp, sys.stderr = sys.stderr, io.BytesIO() if six.PY2 else io.StringIO()
+
     return stdtmp, rlevel,
 
 

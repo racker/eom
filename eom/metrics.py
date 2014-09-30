@@ -70,9 +70,6 @@ def wrap(app):
             elif status_code / 200 == 1:
                 client.incr(status_path + ".2xx")
 
-            # client.incr("marconi." + hostname + ".requests." +
-            #            request_method + "." + api_method)
-
             return start_response(status, headers, *args)
 
         start = time.time() * 1000
