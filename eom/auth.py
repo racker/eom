@@ -15,11 +15,9 @@
 # limitations under the License.
 
 import base64
-import binascii
 import functools
 import logging
 
-import keystoneclient.access as keystone_access
 import keystoneclient.exceptions
 from keystoneclient.v2_0 import client as keystonev2_client
 import msgpack
@@ -80,6 +78,7 @@ def _tuple_to_cache_key(t):
 __packer = msgpack.Packer(encoding='utf-8', use_bin_type=True)
 __unpacker = functools.partial(msgpack.unpackb, encoding='utf-8')
 
+
 def _send_data_to_cache(redis_client, url, access_info):
     """Stores the authentication data to cache
 
@@ -101,7 +100,7 @@ def _send_data_to_cache(redis_client, url, access_info):
         # Use the token's expiration time for the cache expiration
         cache_key = _tuple_to_cache_key((tenant, token, url))
         redis_client.set(cache_key, cache_data)
-        redis_client.pexpire(cache_key, access_info.expires)
+        redis_client.pexpireat(cache_key, access_info.expires)
 
         return True
 
@@ -266,7 +265,8 @@ def _validate_client(redis_client, url, tenant, token, env, region):
         access_info = _get_access_info(redis_client, url, tenant, token)
 
         if access_info is None:
-            LOG.debug(_('Unable to get Access information for %(s_tenant)s') % {
+            LOG.debug(_('Unable to get Access information for '
+                        '%(s_tenant)s') % {
                 's_tenant': tenant
             })
             return False
@@ -313,7 +313,8 @@ def _validate_client(redis_client, url, tenant, token, env, region):
         return True
 
     except Exception as ex:
-        msg = _('Error while trying to authenticate against %(s_url)s - %(s_except)s') % {
+        msg = _('Error while trying to authenticate against'
+                ' %(s_url)s - %(s_except)s') % {
             's_url': url,
             's_except': str(ex)
         }
@@ -343,7 +344,7 @@ def wrap(app, redis_client):
     region = group['region']
 
     LOG.debug('Auth URL: {0:}'.format(auth_url))
-    # WSGI callable
+
     def middleware(env, start_response):
         try:
             token = env['HTTP_X_AUTH_TOKEN']

@@ -41,9 +41,9 @@ def run_server(app, host, port):
 
 
 # Monkey patch the FakeRedis so we can expire data - even if it does nothing
-def fakeredis_pexpire(self, key, time):
+def fakeredis_pexpireat(self, key, when):
     pass
-fakeredis.FakeRedis.pexpire = fakeredis_pexpire
+fakeredis.FakeRedis.pexpireat = fakeredis_pexpireat
 
 
 def fakeredis_connection():
@@ -140,11 +140,13 @@ class TestAuth(util.TestCase):
 
         # The data that will get cached
         access_data = fake_catalog(tenant_id, token)
-        packed_data = msgpack.packb(access_data, use_bin_type=True, encoding='utf-8')
+        packed_data = msgpack.packb(access_data,
+                                    use_bin_type=True,
+                                    encoding='utf-8')
 
         # Redis fails the expiration time
         with mock.patch(
-                'fakeredis.FakeRedis.pexpire') as MockRedisExpire:
+                'fakeredis.FakeRedis.pexpireat') as MockRedisExpire:
             MockRedisExpire.side_effect = Exception(
                 'mock redis expire failure')
             redis_error = auth._send_data_to_cache(redis_client,
@@ -196,10 +198,8 @@ class TestAuth(util.TestCase):
         def redis_toss_exception(*args, **kwargs):
             raise Exception('mock redis exception')
 
-        redis_exception_result = auth._retrieve_data_from_cache(redis_toss_exception,
-                                                         url,
-                                                         tenant_id,
-                                                         token)
+        redis_exception_result = auth._retrieve_data_from_cache(
+            redis_toss_exception, url, tenant_id, token)
         self.assertEqual(redis_exception_result, None)
 
         # msgpack error
@@ -540,7 +540,7 @@ class TestAuth(util.TestCase):
                 'HTTP_X_PROJECT_ID': 'valid_projectid'
             }
             self.auth(env_no_token, self.start_response)
-            self.assertEqual(self.status, '403 Forbidden') 
+            self.assertEqual(self.status, '403 Forbidden')
 
             # Create a LookupError or KeyError when the X-Project-ID
             # Header is not located
@@ -559,7 +559,7 @@ class TestAuth(util.TestCase):
             MockValidateClient.return_value = False
             self.auth(env_valid, self.start_response)
             self.assertEqual(self.status, '403 Forbidden')
-            
+
             # Client passes validation
             MockValidateClient.return_value = True
             self.auth(env_valid, self.start_response)

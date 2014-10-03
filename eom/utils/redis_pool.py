@@ -1,6 +1,5 @@
-import redis
-
 from oslo.config import cfg
+import redis
 
 CONF = cfg.CONF
 
