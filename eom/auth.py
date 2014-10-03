@@ -40,6 +40,13 @@ REDIS_GROUP_NAME = 'eom:auth_redis'
 REDIS_OPTIONS = [
     cfg.StrOpt('host'),
     cfg.StrOpt('port'),
+    cfg.IntOpt('redis_db', default=0),
+    cfg.StrOpt('password', default=None),
+    cfg.BoolOpt('ssl_enable', default=False),
+    cfg.StrOpt('ssl_keyfile', default=None),
+    cfg.StrOpt('ssl_certfile', default=None),
+    cfg.StrOpt('ssl_cert_reqs', default=None),
+    cfg.StrOpt('ssl_ca_certs', default=None),
 ]
 
 CONF.register_opts(REDIS_OPTIONS, group=REDIS_GROUP_NAME)
@@ -63,7 +70,16 @@ def get_auth_redis_client():
     uses the eom:auth_redis settings
     """
     group = CONF[REDIS_GROUP_NAME]
-    pool = redis.ConnectionPool(host=group['host'], port=group['port'], db=0)
+    pool = redis.ConnectionPool(host=group['host'],
+                                port=group['port'],
+                                db=group['redis_db'],
+                                password=group['password'],
+                                ssl=group['ssl_enable'],
+                                ssl_keyfile=group['ssl_keyfile'],
+                                ssl_certfile=group['ssl_certfile'],
+                                ssl_cert_reqs=group['ssl_cert_reqs'],
+                                ssl_ca_certs=group['ssl_ca_certs']
+                                )
     return redis.Redis(connection_pool=pool)
 
 
