@@ -160,7 +160,7 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
 
         except Exception as ex:
             # The cached object didn't match what we expected
-            msg = _('Stored Data does not contain a version - '
+            msg = _('Stored Data does not contain any credentials - '
                     'Exception: %(s_except)s; Data: $(s_data)s') % {
                 's_except': ex,
                 's_data': data
@@ -338,9 +338,15 @@ def _validate_client(redis_client, url, tenant, token, env, region):
         return False
 
 
-def _http_forbidden(start_response):
-    """Responds with HTTP 403."""
-    start_response('403 Forbidden', [('Content-Length', '0')])
+def _http_precondition_failed(start_response):
+    """Responds with HTTP 412."""
+    start_response('412 Precondition Failed', [('Content-Length', '0')])
+    return []
+
+
+def _http_unauthorized(start_response):
+    """Responds with HTTP 401."""
+    start_response('401 Unauthorized', [('Content-Length', '0')])
     return []
 
 
@@ -377,10 +383,11 @@ def wrap(app, redis_client):
                 return app(env, start_response)
 
             else:
-                # Validation failed for some reason, just error out as a 403
+                # Validation failed for some reason, just error out as a 401
                 LOG.error(_('Auth Token validation failed.'))
-                return _http_forbidden(start_response)
+                return _http_unauthorized(start_response)
         except (KeyError, LookupError):
+            # Header failure, error out with 412
             LOG.error(_('Missing required headers.'))
-            return _http_forbidden(start_response)
+            return _http_precondition_failed(start_response)
     return middleware

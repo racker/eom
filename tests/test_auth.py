@@ -157,7 +157,7 @@ class TestAuth(util.TestCase):
         # Redis fails to set the data
         with mock.patch(
                 'fakeredis.FakeRedis.set') as MockRedisSet:
-            MockRedisSet.side_effect = Exception('mock redis expire failure')
+            MockRedisSet.side_effect = Exception('mock redis set data failed')
             redis_error = auth._send_data_to_cache(redis_client,
                                                    url,
                                                    access_data)
@@ -540,7 +540,7 @@ class TestAuth(util.TestCase):
                 'HTTP_X_PROJECT_ID': 'valid_projectid'
             }
             self.auth(env_no_token, self.start_response)
-            self.assertEqual(self.status, '403 Forbidden')
+            self.assertEqual(self.status, '412 Precondition Failed')
 
             # Create a LookupError or KeyError when the X-Project-ID
             # Header is not located
@@ -548,7 +548,7 @@ class TestAuth(util.TestCase):
                 'HTTP_X_AUTH_TOKEN': 'valid_auth_token'
             }
             self.auth(env_no_projectid, self.start_response)
-            self.assertEqual(self.status, '403 Forbidden')
+            self.assertEqual(self.status, '412 Precondition Failed')
 
             # Valid Headers from here on out
             env_valid = {}
@@ -558,7 +558,7 @@ class TestAuth(util.TestCase):
             # Assume the client fails validation
             MockValidateClient.return_value = False
             self.auth(env_valid, self.start_response)
-            self.assertEqual(self.status, '403 Forbidden')
+            self.assertEqual(self.status, '401 Unauthorized')
 
             # Client passes validation
             MockValidateClient.return_value = True
