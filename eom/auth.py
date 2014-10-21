@@ -238,7 +238,7 @@ def _get_access_info(redis_client, url, tenant, token):
 
     if access_info is not None:
         if access_info.will_expire_soon():
-            LOG.info('Token is either expired or will expire soon')
+            LOG.info('Token has expired')
             del access_info
             access_info = None
 
@@ -257,7 +257,7 @@ def _get_access_info(redis_client, url, tenant, token):
     # Make sure it's not already expired
     if access_info is not None:
         if access_info.will_expire_soon():
-            LOG.info('Token is either expired or will expire soon')
+            LOG.info('Token has expired')
             del access_info
             access_info = None
 
