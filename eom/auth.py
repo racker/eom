@@ -120,7 +120,7 @@ def _blacklist_token(redis_client, token, expires_in):
 
 
 def _is_token_blacklisted(redis_client, token):
-    """Stores the token to the blacklist data in the cache
+    """Determines if the token is in the cached blacklist data
 
     :param redis_client: redis.Redis object connected to the redis cache
     :param token: auth_token for the user
