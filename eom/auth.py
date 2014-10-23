@@ -31,7 +31,7 @@ CONF = cfg.CONF
 AUTH_GROUP_NAME = 'eom:auth'
 AUTH_OPTIONS = [
     cfg.StrOpt('auth_url'),
-    cfg.StrOpt('region'),
+    cfg.StrOpt('blacklist_ttl'),
 ]
 
 CONF.register_opts(AUTH_OPTIONS, group=AUTH_GROUP_NAME)
@@ -93,6 +93,55 @@ def _tuple_to_cache_key(t):
 
 __packer = msgpack.Packer(encoding='utf-8', use_bin_type=True)
 __unpacker = functools.partial(msgpack.unpackb, encoding='utf-8')
+
+
+def _blacklist_token(redis_client, token, expires_in):
+    """Stores the token to the blacklist data in the cache
+
+    :param redis_client: redis.Redis object connected to the redis cache
+    :param token: auth_token for the user
+
+    :returns: True on success, otherwise False
+    """
+    try:
+        cache_data = __packer.pack(True)
+        cache_key = token
+
+        redis_client.set(cache_key, cache_data)
+        redis_client.pexpire(cache_key, expires_in)
+        return True
+
+    except Exception as ex:
+        msg = _('Failed to cache the data - Exception: %(s_except)s') % {
+            's_except': ex,
+        }
+        LOG.error(msg)
+        return False
+
+
+def _is_token_blacklisted(redis_client, token):
+    """Stores the token to the blacklist data in the cache
+
+    :param redis_client: redis.Redis object connected to the redis cache
+    :param token: auth_token for the user
+
+    :returns: True on success, otherwise False
+    """
+    cached_data = None
+    try:
+        cached_key = token
+
+        cached_data = redis_client.get(cached_key)
+    except Exception:
+        LOG.debug(_('Failed to retrieve data to cache for key %(s_key)s') % {
+            's_key': cached_key
+        })
+        cached_data = None
+
+    if cached_data is None:
+        return False
+    else:
+        return True
 
 
 def _send_data_to_cache(redis_client, url, access_info):
@@ -175,7 +224,8 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
         return None
 
 
-def _retrieve_data_from_keystone(redis_client, url, tenant, token):
+def _retrieve_data_from_keystone(redis_client, url, tenant, token,
+                                 blacklist_ttl):
     """Retrieve the authentication data from OpenStack Keystone
 
     :param redis_client: redis.Redis object connected to the redis cache
@@ -215,10 +265,13 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token):
             's_except': ex
         }
         LOG.debug(msg)
+
+        # Blacklist the token
+        _blacklist_token(redis_client, token, blacklist_ttl)
         return None
 
 
-def _get_access_info(redis_client, url, tenant, token):
+def _get_access_info(redis_client, url, tenant, token, blacklist_ttl):
     """Retrieve the access information regarding the specified user
 
     :param redis_client: redis.Redis object connected to the redis cache
@@ -249,7 +302,8 @@ def _get_access_info(redis_client, url, tenant, token):
         access_info = _retrieve_data_from_keystone(redis_client,
                                                    url,
                                                    tenant,
-                                                   token)
+                                                   token,
+                                                   blacklist_ttl)
     else:
         LOG.debug('Retrieved token from cache.')
 
@@ -265,7 +319,7 @@ def _get_access_info(redis_client, url, tenant, token):
     return access_info
 
 
-def _validate_client(redis_client, url, tenant, token, env, region):
+def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
     """Update the env with the access information for the user
 
     :param redis_client: redis.Redis object connected to the redis cache
@@ -273,12 +327,21 @@ def _validate_client(redis_client, url, tenant, token, env, region):
     :param tenant: tenant id of user data to retrieve
     :param token: auth_token for the tenant_id
     :param env: environment variable dictionary for the client connection
+    :param blacklist_ttl: number of seconds for which a bad token is black
+                          listed to keep from DDOS'ing Keystone
 
     :returns: True on success, otherwise False
     """
     try:
+        if _is_token_blacklisted(redis_client, token):
+            return False
+
         # Try to get the client's access infomration
-        access_info = _get_access_info(redis_client, url, tenant, token)
+        access_info = _get_access_info(redis_client,
+                                       url,
+                                       tenant,
+                                       token,
+                                       blacklist_ttl)
 
         if access_info is None:
             LOG.debug(_('Unable to get Access information for '
@@ -363,7 +426,7 @@ def wrap(app, redis_client):
 
     group = CONF[AUTH_GROUP_NAME]
     auth_url = group['auth_url']
-    region = group['region']
+    blacklist_ttl = group['blacklist_ttl']
 
     LOG.debug('Auth URL: {0:}'.format(auth_url))
 
@@ -378,7 +441,7 @@ def wrap(app, redis_client):
                                 tenant,
                                 token,
                                 env,
-                                region):
+                                blacklist_ttl):
                 LOG.debug(_('Auth Token validated.'))
                 return app(env, start_response)
 

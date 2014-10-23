@@ -46,6 +46,11 @@ def fakeredis_pexpireat(self, key, when):
 fakeredis.FakeRedis.pexpireat = fakeredis_pexpireat
 
 
+def fakeredis_pexpire(self, key, ttl):
+    pass
+fakeredis.FakeRedis.pexpire = fakeredis_pexpire
+
+
 def fakeredis_connection():
     return fakeredis.FakeRedis()
 
@@ -128,6 +133,47 @@ class TestAuth(util.TestCase):
 
         test_result = auth._tuple_to_cache_key(value_input)
         self.assertEqual(test_result, value_output)
+
+    def test_blacklist_insertion(self):
+        token = 'h0t3l4lph4tang0'
+        bttl = 5
+
+        redis_client = fakeredis_connection()
+
+        # The data that will get cached
+        packed_data = msgpack.packb(True,
+                                    use_bin_type=True,
+                                    encoding='utf-8')
+
+        # Redis fails to expire ttl
+        with mock.patch(
+                'fakeredis.FakeRedis.pexpire') as MockRedisExpire:
+            MockRedisExpire.side_effect = Exception(
+                'mock redis expire failure')
+            redis_error = auth._blacklist_token(redis_client,
+                                                token,
+                                                bttl)
+            self.assertFalse(redis_error)
+
+        # Redis fails to set the data
+        with mock.patch(
+                'fakeredis.FakeRedis.set') as MockRedisSet:
+            MockRedisSet.side_effect = Exception('mock redis set data failed')
+            redis_error = auth._blacklist_token(redis_client,
+                                                token,
+                                                bttl)
+            self.assertFalse(redis_error)
+
+        # Happy path
+        store_result = auth._blacklist_token(redis_client,
+                                             token,
+                                             bttl)
+        self.assertTrue(store_result)
+        stored_data = redis_client.get(token)
+        self.assertIsNotNone(stored_data)
+        self.assertEqual(stored_data, packed_data)
+        stored_data_original = msgpack.unpackb(stored_data, encoding='utf-8')
+        self.assertEqual(True, stored_data_original)
 
     def test_store_data_to_cache(self):
         url = 'myfakeurl'
@@ -222,6 +268,7 @@ class TestAuth(util.TestCase):
         url = 'myurl'
         tenant_id = '789012345'
         token = 'abcdefABCDEF'
+        bttl = 5
 
         redis_client = fakeredis_connection()
 
@@ -233,13 +280,15 @@ class TestAuth(util.TestCase):
                 redis_client,
                 url,
                 tenant_id,
-                token)
+                token,
+                bttl)
             self.assertIsNone(keystone_create_error)
 
     def test_retrieve_keystone_bad_identity_access(self):
         url = 'myurl'
         tenant_id = '789012345'
         token = 'abcdefABCDEF'
+        bttl = 5
 
         redis_client = fakeredis_connection()
 
@@ -252,11 +301,13 @@ class TestAuth(util.TestCase):
             keystone_error = auth._retrieve_data_from_keystone(redis_client,
                                                                url,
                                                                tenant_id,
-                                                               token)
+                                                               token,
+                                                               bttl)
             self.assertIsNone(keystone_error)
 
     def test_retrieve_keystone_check_credentials(self):
         url = 'myurl'
+        bttl = 5
 
         redis_client = fakeredis_connection()
 
@@ -308,7 +359,8 @@ class TestAuth(util.TestCase):
                     redis_client,
                     url,
                     creds['projectid'],
-                    creds['authtoken'])
+                    creds['authtoken'],
+                    bttl)
                 if creds['is_none']:
                     self.assertIsNone(keystone_error)
                 else:
@@ -318,6 +370,7 @@ class TestAuth(util.TestCase):
         url = 'myurl'
         tenant_id = '172839405'
         token = 'AaBbCcDdEeFf'
+        bttl = 5
 
         redis_client = fakeredis_connection()
 
@@ -334,7 +387,8 @@ class TestAuth(util.TestCase):
                 access_info = auth._get_access_info(redis_client,
                                                     url,
                                                     tenant_id,
-                                                    token)
+                                                    token,
+                                                    bttl)
                 self.assertIsNone(access_info)
 
                 # Data in cache, not expired
@@ -343,7 +397,8 @@ class TestAuth(util.TestCase):
                 access_info = auth._get_access_info(redis_client,
                                                     url,
                                                     tenant_id,
-                                                    token)
+                                                    token,
+                                                    bttl)
                 self.assertEqual(access_info,
                                  MockRetrieveCacheData.return_value)
 
@@ -353,7 +408,8 @@ class TestAuth(util.TestCase):
                 access_info = auth._get_access_info(redis_client,
                                                     url,
                                                     tenant_id,
-                                                    token)
+                                                    token,
+                                                    bttl)
                 self.assertEqual(access_info,
                                  MockRetrieveKeystoneData.return_value)
 
@@ -363,7 +419,8 @@ class TestAuth(util.TestCase):
                 access_info = auth._get_access_info(redis_client,
                                                     url,
                                                     tenant_id,
-                                                    token)
+                                                    token,
+                                                    bttl)
                 self.assertNotEqual(access_info,
                                     MockRetrieveCacheData.return_value)
                 self.assertIsNone(access_info)
@@ -374,7 +431,8 @@ class TestAuth(util.TestCase):
                 access_info = auth._get_access_info(redis_client,
                                                     url,
                                                     tenant_id,
-                                                    token)
+                                                    token,
+                                                    bttl)
                 self.assertNotEqual(access_info,
                                     MockRetrieveKeystoneData.return_value)
                 self.assertIsNone(access_info)
@@ -385,7 +443,8 @@ class TestAuth(util.TestCase):
                 access_info = auth._get_access_info(redis_client,
                                                     url,
                                                     tenant_id,
-                                                    token)
+                                                    token,
+                                                    bttl)
                 self.assertNotEqual(access_info,
                                     MockRetrieveCacheData.return_value)
                 self.assertNotEqual(access_info,
@@ -398,7 +457,7 @@ class TestAuth(util.TestCase):
         token = 'AaBbCcDdEeFf'
 
         redis_client = fakeredis_connection()
-        region = 'mock'
+        bttl = 5
 
         # Throw an exception - anything, just needs to throw
         with mock.patch(
@@ -412,7 +471,7 @@ class TestAuth(util.TestCase):
                                            tenant_id,
                                            token,
                                            env_exception_thrown,
-                                           region)
+                                           bttl)
             self.assertFalse(result)
 
     def test_validate_client_invalid_data(self):
@@ -421,7 +480,7 @@ class TestAuth(util.TestCase):
         token = 'AaBbCcDdEeFf'
 
         redis_client = fakeredis_connection()
-        region = 'mock'
+        bttl = 5
 
         # No data is returned
         with mock.patch(
@@ -434,7 +493,29 @@ class TestAuth(util.TestCase):
                                            tenant_id,
                                            token,
                                            env_no_data,
-                                           region)
+                                           bttl)
+            self.assertFalse(result)
+
+    def test_validate_client_token_blacklisted(self):
+        url = 'myurl'
+        tenant_id = '504938271'
+        token = '1nd14r0m303ch0n0v3mb3r3ch0'
+
+        redis_client = fakeredis_connection()
+        bttl = 5
+
+        # We have data
+        with mock.patch(
+                'eom.auth._is_token_blacklisted') as MockBlacklist:
+
+            env_result = {}
+            MockBlacklist.return_value = True
+            result = auth._validate_client(redis_client,
+                                           url,
+                                           tenant_id,
+                                           token,
+                                           env_result,
+                                           bttl)
             self.assertFalse(result)
 
     def test_validate_client_valid_data(self):
@@ -443,7 +524,7 @@ class TestAuth(util.TestCase):
         token = 'AaBbCcDdEeFf'
 
         redis_client = fakeredis_connection()
-        region = 'mock'
+        bttl = 5
 
         # The data that will get cached
         access_data = fake_catalog(tenant_id, token)
@@ -458,67 +539,74 @@ class TestAuth(util.TestCase):
         # We have data
         with mock.patch(
                 'eom.auth._get_access_info') as MockGetAccessInfo:
+            with mock.patch(
+                    'eom.auth._is_token_blacklisted') as MockBlacklist:
 
-            env_result = {}
-            MockGetAccessInfo.return_value = access_data
-            result = auth._validate_client(redis_client,
-                                           url,
-                                           tenant_id,
-                                           token,
-                                           env_result,
-                                           region)
-            self.assertTrue(result)
-            self.assertEqual(env_result['HTTP_X_IDENTITY_STATUS'],
-                             'Confirmed')
-            self.assertEqual(env_result['HTTP_X_USER_ID'],
-                             MockGetAccessInfo.return_value.user_id)
-            self.assertEqual(env_result['HTTP_X_USER_NAME'],
-                             MockGetAccessInfo.return_value.username)
-            self.assertEqual(env_result['HTTP_X_USER_DOMAIN_ID'],
-                             MockGetAccessInfo.return_value.user_domain_id)
-            self.assertEqual(env_result['HTTP_X_USER_DOMAIN_NAME'],
-                             MockGetAccessInfo.return_value.user_domain_name)
-            self.assertEqual(env_result['HTTP_X_ROLES'],
-                             MockGetAccessInfo.return_value.role_names)
-
-            self.assertEqual(env_result['HTTP_X_SERVICE_CATALOG'],
-                             access_data_b64)
-            env_service_catalog_utf8 = base64.b64decode(
-                env_result['HTTP_X_SERVICE_CATALOG'])
-            self.assertEqual(env_service_catalog_utf8, access_data_utf8)
-            env_service_catalog = json.loads(env_service_catalog_utf8)
-            self.assertEqual(env_service_catalog, access_data)
-
-            self.assertTrue(MockGetAccessInfo.return_value.project_scoped)
-            self.assertEqual(env_result['HTTP_X_PROJECT_ID'], tenant_id)
-            self.assertEqual(env_result['HTTP_X_PROJECT_ID'],
-                             MockGetAccessInfo.return_value.project_id)
-            self.assertEqual(env_result['HTTP_X_PROJECT_NAME'],
-                             MockGetAccessInfo.return_value.project_name)
-
-            if MockGetAccessInfo.return_value.domain_scoped:
-                self.assertEqual(env_result['HTTP_X_DOMAIN_ID'],
-                                 MockGetAccessInfo.return_value.domain_id)
-                self.assertEqual(env_result['HTTP_X_DOMAIN_NAME'],
-                                 MockGetAccessInfo.return_value.domain_name)
-            else:
-                self.assertTrue('HTTP_X_DOMAIN_ID' not in env_result.keys())
-                self.assertTrue('HTTP_X_DOMAIN_NAME' not in env_result.keys())
-
-            if MockGetAccessInfo.return_value.project_scoped and (
-                    MockGetAccessInfo.return_value.domain_scoped):
-
-                self.assertEqual(env_result['HTTP_X_PROJECT_DOMAIN_ID'],
+                env_result = {}
+                MockBlacklist.return_value = False
+                MockGetAccessInfo.return_value = access_data
+                result = auth._validate_client(redis_client,
+                                               url,
+                                               tenant_id,
+                                               token,
+                                               env_result,
+                                               bttl)
+                self.assertTrue(result)
+                self.assertEqual(env_result['HTTP_X_IDENTITY_STATUS'],
+                                 'Confirmed')
+                self.assertEqual(env_result['HTTP_X_USER_ID'],
+                                 MockGetAccessInfo.return_value.user_id)
+                self.assertEqual(env_result['HTTP_X_USER_NAME'],
+                                 MockGetAccessInfo.return_value.username)
+                self.assertEqual(env_result['HTTP_X_USER_DOMAIN_ID'],
+                                 MockGetAccessInfo.return_value.user_domain_id)
+                self.assertEqual(env_result['HTTP_X_USER_DOMAIN_NAME'],
                                  MockGetAccessInfo.return_value.
-                                 project_domain_id)
-                self.assertEqual(env_result['HTTP_X_PROJECT_DOMAIN_NAME'],
-                                 MockGetAccessInfo.return_value.
-                                 project_domain_name)
-            else:
-                self.assertTrue('HTTP_X_PROJECT_DOMAIN_ID' not in
-                                env_result.keys())
-                self.assertTrue('HTTP_X_PROJECT_DOMAIN_NAME' not in
-                                env_result.keys())
+                                 user_domain_name)
+                self.assertEqual(env_result['HTTP_X_ROLES'],
+                                 MockGetAccessInfo.return_value.role_names)
+
+                self.assertEqual(env_result['HTTP_X_SERVICE_CATALOG'],
+                                 access_data_b64)
+                env_service_catalog_utf8 = base64.b64decode(
+                    env_result['HTTP_X_SERVICE_CATALOG'])
+                self.assertEqual(env_service_catalog_utf8, access_data_utf8)
+                env_service_catalog = json.loads(env_service_catalog_utf8)
+                self.assertEqual(env_service_catalog, access_data)
+
+                self.assertTrue(MockGetAccessInfo.return_value.project_scoped)
+                self.assertEqual(env_result['HTTP_X_PROJECT_ID'], tenant_id)
+                self.assertEqual(env_result['HTTP_X_PROJECT_ID'],
+                                 MockGetAccessInfo.return_value.project_id)
+                self.assertEqual(env_result['HTTP_X_PROJECT_NAME'],
+                                 MockGetAccessInfo.return_value.project_name)
+
+                if MockGetAccessInfo.return_value.domain_scoped:
+                    self.assertEqual(env_result['HTTP_X_DOMAIN_ID'],
+                                     MockGetAccessInfo.return_value.domain_id)
+                    self.assertEqual(env_result['HTTP_X_DOMAIN_NAME'],
+                                     MockGetAccessInfo.return_value.
+                                     domain_name)
+                else:
+                    self.assertTrue('HTTP_X_DOMAIN_ID' not in
+                                    env_result.keys())
+                    self.assertTrue('HTTP_X_DOMAIN_NAME' not in
+                                    env_result.keys())
+
+                if MockGetAccessInfo.return_value.project_scoped and (
+                        MockGetAccessInfo.return_value.domain_scoped):
+
+                    self.assertEqual(env_result['HTTP_X_PROJECT_DOMAIN_ID'],
+                                     MockGetAccessInfo.return_value.
+                                     project_domain_id)
+                    self.assertEqual(env_result['HTTP_X_PROJECT_DOMAIN_NAME'],
+                                     MockGetAccessInfo.return_value.
+                                     project_domain_name)
+                else:
+                    self.assertTrue('HTTP_X_PROJECT_DOMAIN_ID' not in
+                                    env_result.keys())
+                    self.assertTrue('HTTP_X_PROJECT_DOMAIN_NAME' not in
+                                    env_result.keys())
 
     """
     def check_credentials(self, projectid, token, result):

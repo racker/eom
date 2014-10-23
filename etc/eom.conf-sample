@@ -1,6 +1,6 @@
 [eom:auth]
 auth_url = 'keystone.example.com/v2'
-region = 'mydatacenter'
+blacklist_ttl = 3600
 
 [eom:auth_redis]
 host = 127.0.0.1
