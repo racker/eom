@@ -16,7 +16,7 @@ coverage
 hacking
 
 # Utils
-fakeredis
+fakeredis>=0.5.1
 requests
 
 # uwsgi-module testing

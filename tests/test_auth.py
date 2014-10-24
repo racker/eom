@@ -527,11 +527,10 @@ class TestAuth(util.TestCase):
         bttl = 5
 
         # The data that will get cached
-        access_data = fake_catalog(tenant_id, token)
+        access_info = fake_catalog(tenant_id, token)
 
         # Encode a version of the data for verification tests later
-        data = {}
-        data.update(access_data)
+        data = access_info.service_catalog.catalog
         access_data_utf8 = json.dumps(data).encode(encoding='utf-8',
                                                    errors='strict')
         access_data_b64 = base64.b64encode(access_data_utf8)
@@ -544,7 +543,7 @@ class TestAuth(util.TestCase):
 
                 env_result = {}
                 MockBlacklist.return_value = False
-                MockGetAccessInfo.return_value = access_data
+                MockGetAccessInfo.return_value = access_info
                 result = auth._validate_client(redis_client,
                                                url,
                                                tenant_id,
@@ -572,7 +571,7 @@ class TestAuth(util.TestCase):
                     env_result['HTTP_X_SERVICE_CATALOG'])
                 self.assertEqual(env_service_catalog_utf8, access_data_utf8)
                 env_service_catalog = json.loads(env_service_catalog_utf8)
-                self.assertEqual(env_service_catalog, access_data)
+                self.assertEqual(env_service_catalog, data)
 
                 self.assertTrue(MockGetAccessInfo.return_value.project_scoped)
                 self.assertEqual(env_result['HTTP_X_PROJECT_ID'], tenant_id)

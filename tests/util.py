@@ -41,7 +41,9 @@ class TestCase(testtools.TestCase):
     # https://github.com/wildfuse/unittest2/blob/master/unittest2/case.py
     def assertAlmostEqual(self, first, second, places=None,
                           msg=None, delta=None):
-        """Fail if the two objects are unequal as determined by their
+        """Determine if two objects are nearly equal
+
+           Fail if the two objects are unequal as determined by their
            difference rounded to the given number of decimal places
            (default 7) and comparing to zero, or by comparing that the
            between the two objects is more than the given delta.
@@ -90,12 +92,13 @@ class TestCase(testtools.TestCase):
         parent = os.path.dirname(module_dir)
         return os.path.join(parent, 'etc', filename)
 
-    def create_env(self, path, roles=None, project_id=None, auth_token=None, method='GET'):
+    def create_env(self, path, roles=None, project_id=None, auth_token=None,
+                   method='GET'):
         env = {
             'PATH_INFO': path,
             'REQUEST_METHOD': method
         }
-        
+
         if auth_token is not None:
             env['HTTP_X_AUTH_TOKEN'] = auth_token
 

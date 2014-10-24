@@ -1,8 +1,9 @@
-from statsd import StatsClient
-import time
 import re
-from oslo.config import cfg
 import socket
+import time
+
+from oslo.config import cfg
+import statsd
 
 OPT_GROUP_NAME = 'eom:statsd'
 OPTIONS = [
@@ -22,6 +23,7 @@ OPTIONS = [
                required=False)
 ]
 
+
 def wrap(app):
     conf = cfg.CONF
     conf.register_opts(OPTIONS, group=OPT_GROUP_NAME)
@@ -35,16 +37,16 @@ def wrap(app):
     for (method, pattern) in regex_strings:
         regex.append((method, re.compile(pattern)))
 
-    client = StatsClient(addr, prefix=prefix)
-
+    client = statsd.StatsClient(addr, prefix=prefix)
 
     # initialize buckets
     for request_method in ["GET", "PUT", "HEAD", "POST", "DELETE", "PATCH"]:
         for name, regexstr in regex_strings:
             for code in ["2xx", "4xx", "5xx"]:
-                client.incr("marconi."+socket.gethostname()+".requests."+request_method+"."+name+"."+code)
-                client.decr("marconi."+socket.gethostname()+".requests."+request_method+"."+name+"."+code)
-
+                client.incr("marconi." + socket.gethostname() + ".requests." +
+                            request_method + "." + name + "." + code)
+                client.decr("marconi." + socket.gethostname() + ".requests." +
+                            request_method + "." + name + "." + code)
 
     def middleware(env, start_response):
 
@@ -58,7 +60,8 @@ def wrap(app):
                 api_method = method
 
         def _start_response(status, headers, *args):
-            status_path = "marconi." + hostname + ".requests." + request_method + "." + api_method
+            status_path = ("marconi." + hostname + ".requests." +
+                           request_method + "." + api_method)
             status_code = int(status[:3])
             if status_code / 500 == 1:
                 client.incr(status_path + ".5xx")
@@ -67,11 +70,7 @@ def wrap(app):
             elif status_code / 200 == 1:
                 client.incr(status_path + ".2xx")
 
-            #client.incr("marconi."+hostname+".requests."+request_method+"."+api_method)
-
             return start_response(status, headers, *args)
-
-
 
         start = time.time() * 1000
         response = app(env, _start_response)

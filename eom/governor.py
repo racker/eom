@@ -15,14 +15,14 @@
 # limitations under the License.
 
 from __future__ import division
-import itertools
 import logging
 import re
 import time
 
 from oslo.config import cfg
-import simplejson as json
 import redis
+import simplejson as json
+import six
 
 
 CONF = cfg.CONF
@@ -134,11 +134,20 @@ def _create_limiter(redis_client):
 
     def calc_sleep(project_id, rate):
         now = time.time()
+        last_time = now
         count = 1.0
 
         try:
-            count, last_time = [key for key in
-                                redis_client.hmget(project_id, 'c', 't')]
+            lookup = redis_client.hmget(project_id, 'c', 't')
+
+            if lookup is not None:
+                count, last_time = lookup
+
+                if count is None:
+                    count = float(1.0)
+
+                if last_time is None:
+                    last_time = now
 
             if not all([count, last_time]):
                 raise KeyError
@@ -186,8 +195,8 @@ def match_rate(project, method, route, project_rates, general_rates):
 
     try:
         matcher = lambda r: applies_to(r, method, route)
-        return next(itertools.ifilter(matcher,
-                                      general_rates))
+        return next(six.moves.filter(matcher,
+                                     general_rates))
     except StopIteration:
         return None
 
