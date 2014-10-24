@@ -27,10 +27,10 @@ from wsgiref import simple_server
 import ddt
 import fakeredis
 import requests
+import six
 
 from eom import governor
 import tests
-from . import util
 
 
 def run_server(app, host, port):
@@ -42,7 +42,10 @@ def _suppress_logging():
     requests_log = logging.getLogger("requests")
     rlevel = requests_log.level
     requests_log.setLevel(logging.WARNING)
-    stdtmp, sys.stderr = sys.stderr, io.BytesIO()  # Suppress logging
+
+    # Suppress logging
+    stdtmp, sys.stderr = sys.stderr, io.BytesIO() if six.PY2 else io.StringIO()
+
     return stdtmp, rlevel,
 
 
@@ -198,7 +201,7 @@ class TestGovernor(tests.util.TestCase):
 
     def test_limiter_raises_if_over_limit(self):
         call = lambda: self.limiter(1, self.test_rate)
-        [call() for _ in range(self.limit + 1)]
+        [call() for _ in range(self.limit)]
         self.assertRaises(governor.HardLimitError, call)
 
     def test_limit_reached_no_429(self):
@@ -210,9 +213,9 @@ class TestGovernor(tests.util.TestCase):
     def test_draining_evades_429(self):
         self._test_draining(self.default_rate.limit + 3, 204)
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
     # Helpers
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
 
     def _test_limit(self, limit, expected_status,
                     method='GET'):
@@ -232,6 +235,6 @@ class TestGovernor(tests.util.TestCase):
             url = 'http://%s:%s' % (host, port) + self.test_url
             call = lambda: request(url, headers={'X-Project-ID': 1234})
             [call().status_code for _ in range(limit // 2)]
-            time.sleep(0.5)
+            time.sleep(2.0)
             resp = [call().status_code for _ in range(limit // 2)][-1]
             self.assertEqual(resp, expected_status)

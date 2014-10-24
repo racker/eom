@@ -41,7 +41,9 @@ class TestCase(testtools.TestCase):
     # https://github.com/wildfuse/unittest2/blob/master/unittest2/case.py
     def assertAlmostEqual(self, first, second, places=None,
                           msg=None, delta=None):
-        """Fail if the two objects are unequal as determined by their
+        """Determine if two objects are nearly equal
+
+           Fail if the two objects are unequal as determined by their
            difference rounded to the given number of decimal places
            (default 7) and comparing to zero, or by comparing that the
            between the two objects is more than the given delta.
