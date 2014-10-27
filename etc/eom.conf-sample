@@ -1,3 +1,11 @@
+[eom:auth]
+auth_url = 'keystone.example.com/v2'
+blacklist_ttl = 3600
+
+[eom:auth_redis]
+host = 127.0.0.1
+port = 6379
+
 [eom:rbac]
 acls_file = rbac.json-sample
 

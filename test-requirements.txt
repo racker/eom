@@ -4,6 +4,7 @@ distribute>=0.6.24
 # Unit testing
 ddt
 testtools
+mock
 
 # Test runner
 nose

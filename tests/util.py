@@ -92,11 +92,15 @@ class TestCase(testtools.TestCase):
         parent = os.path.dirname(module_dir)
         return os.path.join(parent, 'etc', filename)
 
-    def create_env(self, path, roles=None, project_id=None, method='GET'):
+    def create_env(self, path, roles=None, project_id=None, auth_token=None,
+                   method='GET'):
         env = {
             'PATH_INFO': path,
             'REQUEST_METHOD': method
         }
+
+        if auth_token is not None:
+            env['HTTP_X_AUTH_TOKEN'] = auth_token
 
         if project_id is not None:
             env['HTTP_X_PROJECT_ID'] = project_id
