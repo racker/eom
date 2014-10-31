@@ -18,6 +18,7 @@ import base64
 import functools
 import logging
 
+from keystoneclient import access
 import keystoneclient.exceptions
 from keystoneclient.v2_0 import client as keystonev2_client
 import msgpack
@@ -31,7 +32,7 @@ CONF = cfg.CONF
 AUTH_GROUP_NAME = 'eom:auth'
 AUTH_OPTIONS = [
     cfg.StrOpt('auth_url'),
-    cfg.StrOpt('blacklist_ttl'),
+    cfg.IntOpt('blacklist_ttl'),
 ]
 
 CONF.register_opts(AUTH_OPTIONS, group=AUTH_GROUP_NAME)
@@ -205,7 +206,7 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
 
         try:
             data = __unpacker(cached_data)
-            return data
+            return access.AccessInfoV2(data)
 
         except Exception as ex:
             # The cached object didn't match what we expected
@@ -332,6 +333,16 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
 
     :returns: True on success, otherwise False
     """
+
+    def _management_url(*args, **kwargs):
+        return url
+
+    def patch_management_url():
+        from keystoneclient import service_catalog
+        service_catalog.ServiceCatalog.url_for = _management_url
+
+    patch_management_url()
+
     try:
         if _is_token_blacklisted(redis_client, token):
             return False
