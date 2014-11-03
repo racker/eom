@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Rackspace, Inc.
+# Copyright (c) 2014 Rackspace, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -8,7 +8,7 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR ONDITIONS OF ANY KIND, either express or
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
 #
 # See the License for the specific language governing permissions and
@@ -24,6 +24,7 @@ from keystoneclient.v2_0 import client as keystonev2_client
 import msgpack
 from oslo.config import cfg
 import redis
+from redis import connection
 import simplejson as json
 
 LOG = logging.getLogger(__name__)
@@ -71,16 +72,22 @@ def get_auth_redis_client():
     uses the eom:auth_redis settings
     """
     group = CONF[REDIS_GROUP_NAME]
-    pool = redis.ConnectionPool(host=group['host'],
-                                port=group['port'],
-                                db=group['redis_db'],
-                                password=group['password'],
-                                ssl=group['ssl_enable'],
-                                ssl_keyfile=group['ssl_keyfile'],
-                                ssl_certfile=group['ssl_certfile'],
-                                ssl_cert_reqs=group['ssl_cert_reqs'],
-                                ssl_ca_certs=group['ssl_ca_certs']
-                                )
+
+    if group['ssl_enable']:
+        pool = redis.ConnectionPool(host=group['host'],
+                                    port=group['port'],
+                                    db=group['redis_db'],
+                                    password=group['password'],
+                                    ssl_keyfile=group['ssl_keyfile'],
+                                    ssl_certfile=group['ssl_certfile'],
+                                    ssl_cert_reqs=group['ssl_cert_reqs'],
+                                    ssl_ca_certs=group['ssl_ca_certs'],
+                                    connection_class=connection.SSLConnection)
+    else:
+        pool = redis.ConnectionPool(host=group['host'],
+                                    port=group['port'],
+                                    db=group['redis_db'])
+
     return redis.Redis(connection_pool=pool)
 
 

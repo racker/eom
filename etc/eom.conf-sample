@@ -5,6 +5,12 @@ blacklist_ttl = 3600
 [eom:auth_redis]
 host = 127.0.0.1
 port = 6379
+ssl_enable = False
+# password = sample
+# ssl_keyfile = sample
+# ssl_certfile = sample
+# ssl_cert_reqs = sample
+# ssl_ca_certs = sample
 
 [eom:rbac]
 acls_file = rbac.json-sample
