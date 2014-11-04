@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Rackspace, Inc.
+# Copyright (c) 2014 Rackspace, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -8,7 +8,7 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR ONDITIONS OF ANY KIND, either express or
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
 #
 # See the License for the specific language governing permissions and
@@ -18,11 +18,13 @@ import base64
 import functools
 import logging
 
+from keystoneclient import access
 import keystoneclient.exceptions
 from keystoneclient.v2_0 import client as keystonev2_client
 import msgpack
 from oslo.config import cfg
 import redis
+from redis import connection
 import simplejson as json
 
 LOG = logging.getLogger(__name__)
@@ -31,7 +33,7 @@ CONF = cfg.CONF
 AUTH_GROUP_NAME = 'eom:auth'
 AUTH_OPTIONS = [
     cfg.StrOpt('auth_url'),
-    cfg.StrOpt('blacklist_ttl'),
+    cfg.IntOpt('blacklist_ttl'),
 ]
 
 CONF.register_opts(AUTH_OPTIONS, group=AUTH_GROUP_NAME)
@@ -70,16 +72,22 @@ def get_auth_redis_client():
     uses the eom:auth_redis settings
     """
     group = CONF[REDIS_GROUP_NAME]
-    pool = redis.ConnectionPool(host=group['host'],
-                                port=group['port'],
-                                db=group['redis_db'],
-                                password=group['password'],
-                                ssl=group['ssl_enable'],
-                                ssl_keyfile=group['ssl_keyfile'],
-                                ssl_certfile=group['ssl_certfile'],
-                                ssl_cert_reqs=group['ssl_cert_reqs'],
-                                ssl_ca_certs=group['ssl_ca_certs']
-                                )
+
+    if group['ssl_enable']:
+        pool = redis.ConnectionPool(host=group['host'],
+                                    port=group['port'],
+                                    db=group['redis_db'],
+                                    password=group['password'],
+                                    ssl_keyfile=group['ssl_keyfile'],
+                                    ssl_certfile=group['ssl_certfile'],
+                                    ssl_cert_reqs=group['ssl_cert_reqs'],
+                                    ssl_ca_certs=group['ssl_ca_certs'],
+                                    connection_class=connection.SSLConnection)
+    else:
+        pool = redis.ConnectionPool(host=group['host'],
+                                    port=group['port'],
+                                    db=group['redis_db'])
+
     return redis.Redis(connection_pool=pool)
 
 
@@ -205,7 +213,7 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
 
         try:
             data = __unpacker(cached_data)
-            return data
+            return access.AccessInfoV2(data)
 
         except Exception as ex:
             # The cached object didn't match what we expected
@@ -332,6 +340,16 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
 
     :returns: True on success, otherwise False
     """
+
+    def _management_url(*args, **kwargs):
+        return url
+
+    def patch_management_url():
+        from keystoneclient import service_catalog
+        service_catalog.ServiceCatalog.url_for = _management_url
+
+    patch_management_url()
+
     try:
         if _is_token_blacklisted(redis_client, token):
             return False
@@ -357,7 +375,7 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
         env['HTTP_X_USER_NAME'] = access_info.username
         env['HTTP_X_USER_DOMAIN_ID'] = access_info.user_domain_id
         env['HTTP_X_USER_DOMAIN_NAME'] = access_info.user_domain_name
-        env['HTTP_X_ROLES'] = access_info.role_names
+        env['HTTP_X_ROLES'] = ','.join(role for role in access_info.role_names)
         if access_info.has_service_catalog():
             # Convert the service catalog to JSON
             service_catalog_data = json.dumps(
