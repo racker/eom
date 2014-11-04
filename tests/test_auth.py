@@ -562,9 +562,9 @@ class TestAuth(util.TestCase):
                 self.assertEqual(env_result['HTTP_X_USER_DOMAIN_NAME'],
                                  MockGetAccessInfo.return_value.
                                  user_domain_name)
+                role_names = MockGetAccessInfo.return_value.role_names
                 self.assertEqual(env_result['HTTP_X_ROLES'],
-                                 MockGetAccessInfo.return_value.role_names)
-
+                                 ','.join(role for role in role_names))
                 self.assertEqual(env_result['HTTP_X_SERVICE_CATALOG'],
                                  access_data_b64)
                 env_service_catalog_utf8 = base64.b64decode(

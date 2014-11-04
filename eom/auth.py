@@ -375,7 +375,7 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
         env['HTTP_X_USER_NAME'] = access_info.username
         env['HTTP_X_USER_DOMAIN_ID'] = access_info.user_domain_id
         env['HTTP_X_USER_DOMAIN_NAME'] = access_info.user_domain_name
-        env['HTTP_X_ROLES'] = access_info.role_names
+        env['HTTP_X_ROLES'] = ','.join(role for role in access_info.role_names)
         if access_info.has_service_catalog():
             # Convert the service catalog to JSON
             service_catalog_data = json.dumps(
