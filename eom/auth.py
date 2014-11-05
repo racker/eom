@@ -108,6 +108,7 @@ def _blacklist_token(redis_client, token, expires_in):
 
     :param redis_client: redis.Redis object connected to the redis cache
     :param token: auth_token for the user
+    :param expires_in: time in milliseconds for blacklisting failed tokens
 
     :returns: True on success, otherwise False
     """
@@ -240,6 +241,7 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
     :param url: Keystone Identity URL to authenticate against
     :param tenant: tenant id of user data to retrieve
     :param token: auth_token for the tenant_id
+    :param blacklist_ttl: time in milliseconds for blacklisting failed tokens
 
     :returns: a keystoneclient.access.AccessInfo on success or None on error
     """
@@ -288,6 +290,7 @@ def _get_access_info(redis_client, url, tenant, token, blacklist_ttl):
     :param url: Keystone Identity URL to authenticate against
     :param tenant: tenant id of user data to retrieve
     :param token: auth_token for the tenant_id
+    :param blacklist_ttl: time in milliseconds for blacklisting failed tokens
 
     :returns: keystoneclient.access.AccessInfo for the user on success
               None on error
@@ -337,8 +340,7 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
     :param tenant: tenant id of user data to retrieve
     :param token: auth_token for the tenant_id
     :param env: environment variable dictionary for the client connection
-    :param blacklist_ttl: number of milliseconds for which a bad token is
-                          black listed to keep from DDOS'ing Keystone
+    :param blacklist_ttl: time in milliseconds for blacklisting failed tokens
 
     :returns: True on success, otherwise False
     """
