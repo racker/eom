@@ -60,7 +60,7 @@ Requester Requirements
 
 Unlike Keystone Middleware, which requires and forces that only the X-Auth-Token header be provided; EOM Auth
 also requires that the X-Project-ID header be specified. If the requisite headers are missing, then EOM Auth
-will responde with a 412 Precondition Failed error. If the headers are present but it is unable to authenticate
+will respond with a 412 Precondition Failed error. If the headers are present but it is unable to authenticate
 then it will respond with a 401 Unauthorized error.
 
 -------------
