@@ -19,7 +19,7 @@ import functools
 import logging
 
 from keystoneclient import access
-import keystoneclient.exceptions
+from keystoneclient import exceptions
 from keystoneclient.v2_0 import client as keystonev2_client
 import msgpack
 from oslo.config import cfg
@@ -248,16 +248,8 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
                                             token=token,
                                             auth_url=url)
 
-    except Exception as ex:
-        msg = _('Failed to retrieve Keystone client - %(s_except)s') % {
-            's_except': ex
-        }
-        LOG.debug(msg)
-        return None
-
     # Now try to authenticate the user and get the user information using
     # only the data provided, no special administrative tokens required
-    try:
         access_info = keystone.get_raw_token_from_identity_service(
             auth_url=url, tenant_id=tenant, token=token)
 
@@ -266,8 +258,8 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
 
         return access_info
 
-    except keystoneclient.exceptions.AuthorizationFailure as ex:
-        # Provided data was invalid
+    except (exceptions.AuthorizationFailure, exceptions.Unauthorized) as ex:
+        # Provided data was invalid and authorization failed
         msg = _('Failed to authenticate against %(s_url) - %(s_except)s') % {
             's_url': url,
             's_except': ex
@@ -276,6 +268,16 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
 
         # Blacklist the token
         _blacklist_token(redis_client, token, blacklist_ttl)
+        return None
+
+    except Exception as ex:
+        # Provided data was invalid or something else went wrong
+        msg = _('Failed to authenticate against %(s_url) - %(s_except)s') % {
+            's_url': url,
+            's_except': ex
+        }
+        LOG.debug(msg)
+
         return None
 
 
@@ -335,8 +337,8 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
     :param tenant: tenant id of user data to retrieve
     :param token: auth_token for the tenant_id
     :param env: environment variable dictionary for the client connection
-    :param blacklist_ttl: number of seconds for which a bad token is black
-                          listed to keep from DDOS'ing Keystone
+    :param blacklist_ttl: number of milliseconds for which a bad token is
+                          black listed to keep from DDOS'ing Keystone
 
     :returns: True on success, otherwise False
     """

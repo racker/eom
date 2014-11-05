@@ -21,7 +21,7 @@ from wsgiref import simple_server
 
 import fakeredis
 from keystoneclient import access
-import keystoneclient.exceptions
+from keystoneclient import exceptions
 import mock
 import msgpack.exceptions
 import simplejson as json
@@ -65,13 +65,13 @@ def fake_catalog(tenant, token):
 
 
 def fake_auth_raise(self, auth_url, tenant_id, token):
-    raise keystoneclient.exceptions.AuthorizationFailure('mock Keystone error')
+    raise exceptions.AuthorizationFailure('mock Keystone error')
 
 
 class fake_client_object_raise(object):
 
     def get_raw_token_from_identity_service(self, auth_url, tenant_id, token):
-        raise keystoneclient.exceptions.AuthorizationFailure(
+        raise exceptions.AuthorizationFailure(
             'mocking - identity crisis')
 
 
@@ -88,13 +88,13 @@ class fake_client_object_check_credentials(object):
             return access.AccessInfoV2(**catalog)
         else:
             if token == 'valid_token':
-                raise keystoneclient.exceptions.AuthorizationFailure(
+                raise exceptions.AuthorizationFailure(
                     'mocking - invalid project id')
             elif tenant_id == 'valid_projectid':
-                raise keystoneclient.exceptions.AuthorizationFailure(
+                raise exceptions.AuthorizationFailure(
                     'mocking - invalid token')
             else:
-                raise keystoneclient.exceptions.AuthorizationFailure(
+                raise exceptions.AuthorizationFailure(
                     'mocking - invalid or missing token or project id')
 
 
@@ -263,6 +263,38 @@ class TestAuth(util.TestCase):
                                                          tenant_id,
                                                          token)
         self.assertEqual(happy_v2_result, data)
+
+    def test_retrieve_keystone_bad_client_authorization_error(self):
+        url = 'myurl'
+        tenant_id = '789012345'
+        token = 'abcdefABCDEF'
+        bttl = 5
+
+        redis_client = fakeredis_connection()
+
+        with mock.patch(
+                'keystoneclient.v2_0.client.Client') as MockKeystoneClient:
+            MockKeystoneClient.side_effect = exceptions.Unauthorized(
+                'Mock - invalid client object')
+            keystone_create_error = auth._retrieve_data_from_keystone(
+                redis_client,
+                url,
+                tenant_id,
+                token,
+                bttl)
+            self.assertIsNone(keystone_create_error)
+
+        with mock.patch(
+                'keystoneclient.v2_0.client.Client') as MockKeystoneClient:
+            MockKeystoneClient.side_effect = exceptions.AuthorizationFailure(
+                'Mock - invalid client object')
+            keystone_create_error = auth._retrieve_data_from_keystone(
+                redis_client,
+                url,
+                tenant_id,
+                token,
+                bttl)
+            self.assertIsNone(keystone_create_error)
 
     def test_retrieve_keystone_bad_client(self):
         url = 'myurl'
