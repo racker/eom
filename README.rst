@@ -177,8 +177,7 @@ TBD
 RBAC
 ====
 
-RBAC (Role Based Access Control) defines rules on the type of resources a particular user has access to.
-EOM has a rbac middleware, which allows for the above type of filtering.
+EOM RBAC provides Role-based Access Control which defines rules on the types of resources a particular user has access to, and filters users accordingly.
 
 -------------
 Configuration
@@ -190,7 +189,7 @@ Configuration
 	acls_file=rbac.json
 
 
-The filters are of the form specified in rbac.json
+The acls_file parameter specifies a JSON formatted file on the local system that provides the filter rules as follows:
 
 .. code-block:: json
 
@@ -205,21 +204,21 @@ The filters are of the form specified in rbac.json
 
     resource : name of the resource
 
-    route : a regex that would match all the different combinations for a given endpoint
+    route : a Python Regex that would match all the different combinations for a given endpoint
 
     acl : an access control list, with different roles being assigned to read, write and delete
 
-Internally the rbac middleware associates each of read, write and delete to their appropriate HTTP verb.
+Internally the RBAC middleware associates each of read, write and delete to their appropriate HTTP verb.
 For eg: PUT is mapped to write
 
 -------------------
 How does RBAC work?
 -------------------
 
-The rbac middleware relies on the X-Roles Header being set per request. This contains the roles assigned to the particular
-user. Incidentally, loading up the eom auth middleware before setting up the rbac middleware sets the X-Roles Header.
+The RBAC middleware relies on the X-Roles Header being set per request. This contains the roles assigned to the particular
+user. Incidentally, loading up the EOM Auth middleware before setting up the RBAC middleware sets the X-Roles Header.
 
-It is also to be noted that the rbac middleware only checks those routes that are present in rbac.json, a request that does not match any given routes
+It is also to be noted that the RBAC middleware only checks those routes that are present in rbac.json, a request that does not match any given routes
 will be passed on to the wsgi app that is next in the pipeline with no verification.
 
 If the current request matches a route defined in a particular resource in rbac.json, the corresponding permissions are checked for the user.
