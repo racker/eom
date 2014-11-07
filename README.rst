@@ -166,8 +166,8 @@ Before we go into the algorithm, there are a few things we need to know about
             in time
     route : python RegEx for a given endpoint that needs to be rate-limited
     methods : HTTP verbs
-    rates_file : json file containing route, methods, limits and drain_velocity
-    project_rates_file : json file with details on project id specific rate limiting
+    rates_file : JSON file containing route, methods, limits and drain_velocity
+    project_rates_file : JSON file with details on project id specific rate limiting
 
 ---------
 Algorithm
