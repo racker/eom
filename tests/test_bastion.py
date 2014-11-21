@@ -47,10 +47,10 @@ class TestBastion(util.TestCase):
         env = self.create_env(self.normal_route)
         self._expect(env, 403)
 
-    def test_route_restricted_and_xforward_present_returns_404(self):
+    def test_route_restricted_and_xforward_present_returns_204(self):
         env = self.create_env(self.restricted_route)
         env['HTTP_X_FORWARDED_FOR'] = 'taco'
-        self._expect(env, 404)
+        self._expect(env, 204)
 
     def test_route_restricted_and_not_forwarded_returns_204(self):
         env = self.create_env(self.restricted_route)
@@ -68,4 +68,4 @@ class TestBastion(util.TestCase):
         self._expect(env, 204)
 
         env['HTTP_X_FORWARDED_FOR'] = 'taco'
-        self._expect(env, 404)
+        self._expect(env, 204)

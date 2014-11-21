@@ -50,6 +50,7 @@ Routes may also be separated by newlines, e.g.:
 """
 
 import logging
+import time
 
 from oslo.config import cfg
 
@@ -88,7 +89,11 @@ def wrap(app_backdoor, app_gated):
                 if not contains_x_forward:
                     return app_backdoor(env, start_response)
                 else:
-                    return start_response('404 Not Found', [])
+                    # NOTE(cabrera): add a tiny bit of latency to make
+                    # users feel like they're mining dogecoin when
+                    # they hit a restricted endpoint
+                    time.sleep(0.01)
+                    return start_response('204 No Content', [])
 
         # NOTE(cabrera): not special route - keep calm and WSGI on
         return app_gated(env, start_response)
