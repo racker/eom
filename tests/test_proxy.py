@@ -45,7 +45,7 @@ class ProxyTestingService(StackInABoxService):
         super(ProxyTestingService, self).__init__('proxy')
         self.register(StackInABoxService.GET, '/hello',
                       ProxyTestingService.root_handler)
-        self.register('DELETE', '/d',
+        self.register(StackInABoxService.DELETE, '/d',
                       ProxyTestingService.delete_handler)
         self.register(StackInABoxService.GET, '/g',
                       ProxyTestingService.get_handler)
