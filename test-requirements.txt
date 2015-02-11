@@ -17,7 +17,11 @@ hacking
 
 # Utils
 fakeredis>=0.5.1
+fixtures
+httpretty
+-e git+https://github.com/BenjamenMeyer/stackInABox.git@master#egg=stackinabox_master
 requests
+# stackinabox
 
 # uwsgi-module testing
 uwsgi
