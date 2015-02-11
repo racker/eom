@@ -20,9 +20,10 @@ import ddt
 import fixtures
 import httpretty
 from oslo_config import fixture as fixture_config
-import stackinabox.httpretty
+import six
 from stackinabox.services.service import StackInABoxService
 from stackinabox.stack import StackInABox
+import stackinabox.util_httpretty
 
 from eom import proxy
 from tests import util
@@ -33,13 +34,13 @@ LOG = logging.getLogger(__name__)
 
 class ProxyTestingService(StackInABoxService):
 
-    DELETE_RESPONSE = "Where'd it go?"
-    GET_RESPONSE = "You've been gotten"
+    DELETE_RESPONSE = "DELETED"
+    GET_RESPONSE = "GET"
     OPTIONS_ALLOW_HEADERS = ','.join(StackInABoxService.METHODS)
-    OPTIONS_RESPONSE = "Enjoy your options while they last"
-    PATCH_RESPONSE = "Glad to be of your medical service"
-    POST_RESPONSE = "Riding horses is fun."
-    PUT_RESPONSE = "You're presciption is ready."
+    OPTIONS_RESPONSE = "OPTIONS"
+    PATCH_RESPONSE = "PATCH"
+    POST_RESPONSE = "POST"
+    PUT_RESPONSE = "PUT"
 
     def __init__(self):
         super(ProxyTestingService, self).__init__('proxy')
@@ -97,7 +98,8 @@ class FakeProxyResponse(object):
 
     def __call__(self, result, headers):
         self.result = result
-        status_code, self.reason = result.split(' ', maxsplit=1)
+        status_code, self.reason = result.split(' ', maxsplit=1)\
+            if six.PY3 else result.split(' ', 1)
         self.status_code = int(status_code)
         self.headers = headers
 
@@ -168,7 +170,7 @@ class TestProxy(util.TestCase, fixtures.TestWithFixtures):
         return environ
 
     def test_proxy_init_valid(self):
-        stackinabox.httpretty.httpretty_registration('localhost')
+        stackinabox.util_httpretty.httpretty_registration('localhost')
         service_url = 'http://localhost/proxy/'
         service_timeoutms = 30000
 
@@ -200,7 +202,7 @@ class TestProxy(util.TestCase, fixtures.TestWithFixtures):
             for k, v in self.response.headers
         }
         self.assertNotIn('X-Reverse-Proxy-Transaction-Id'.upper(),
-                      controlled_headers)
+                         controlled_headers)
 
         self.assertEqual(self.response.status_code,
                          200)
@@ -208,7 +210,7 @@ class TestProxy(util.TestCase, fixtures.TestWithFixtures):
                          b'Hello')
 
     def test_proxy_init_invalid(self):
-        stackinabox.httpretty.httpretty_registration('localhost')
+        stackinabox.util_httpretty.httpretty_registration('localhost')
         service_url = None
         service_timeoutms = 30000
 
@@ -256,7 +258,7 @@ class TestProxy(util.TestCase, fixtures.TestWithFixtures):
                ProxyTestingService.PUT_RESPONSE.encode()))
     @ddt.unpack
     def test_proxy_test_http_verb(self, code, path, verb, response_body):
-        stackinabox.httpretty.httpretty_registration('localhost')
+        stackinabox.util_httpretty.httpretty_registration('localhost')
         service_url = 'http://localhost/proxy/'
         service_timeoutms = 30000
 

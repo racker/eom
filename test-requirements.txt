@@ -20,7 +20,7 @@ fakeredis>=0.5.1
 fixtures
 httpretty
 requests
-stackinabox
+stackinabox>=0.3
 
 # uwsgi-module testing
 uwsgi
