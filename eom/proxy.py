@@ -53,7 +53,6 @@ class ReverseProxyRequest(object):
             'name': self.environ_controlled['SERVER_NAME'],
             'port': self.environ_controlled['SERVER_PORT']
         }
-        self.body = None
         self.wsgi = {
             'version': environ['wsgi.version'],
             'scheme': environ['wsgi.url_scheme'],
@@ -63,6 +62,7 @@ class ReverseProxyRequest(object):
             'multiprocess': environ['wsgi.multiprocess'],
             'run_once': environ['wsgi.run_once']
         }
+
         self.transaction_id = uuid.uuid4()
         self.rebuild_headers()
 
@@ -71,11 +71,10 @@ class ReverseProxyRequest(object):
 
         for k, v in self.environ_controlled.items():
 
-            kp = k
-            kp.replace('_', '-')
+            kp = k.lower().replace('_', '-')
 
             if k.startswith('HTTP_'):
-                self.headers[kp] = v
+                self.headers[kp[5:]] = v
 
             elif k.startswith('CONTENT_'):
                 self.headers[kp] = v
@@ -88,6 +87,7 @@ class ReverseProxyRequest(object):
                                    self.path,
                                    self.query_string)
 
+    @property
     def body(self):
         return self.wsgi['input']
 
@@ -139,16 +139,11 @@ class ReverseProxy(object):
                                     timeout=self.config['timeout'],
                                     allow_redirects=False,
                                     stream=True)
+
         start_response(ReverseProxy.make_response_text(response),
                        [(k, v) for k, v in response.headers.items()])
-        if 'wsgi.file_wrapper' in environ:
-            if environ['wsgi.file_wrapper']:
-                file_wrapper = environ['wsgi.file_wrapper']
-                return file_wrapper(response.raw,
-                                    ReverseProxy.STREAM_BLOCK_SIZE)
 
-        return iter(lambda: response.raw.read(ReverseProxy.STREAM_BLOCK_SIZE),
-                    b'')
+        return response.iter_content(decode_unicode=False)
 
     def __call__(self, environ, start_response):
         return self.handler(environ, start_response)
