@@ -141,7 +141,7 @@ class ReverseProxy(object):
                                     stream=True)
 
         start_response(ReverseProxy.make_response_text(response),
-                       [(k, v) for k, v in response.headers.items()])
+                       list(response.headers.items()))
 
         return response.iter_content(decode_unicode=False)
 

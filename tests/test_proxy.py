@@ -151,10 +151,7 @@ class TestProxy(util.TestCase, fixtures.TestWithFixtures):
         }
         environ['wsgi.url_scheme'] = scheme
 
-        environ.update({
-            k: v
-            for k, v in headers.items()
-        })
+        environ.update(headers)
 
         environ['request_method'] = method
         environ['script_name'] = path
