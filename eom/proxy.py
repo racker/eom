@@ -111,7 +111,7 @@ class ReverseProxy(object):
             LOG.warn('Configuration Error - upstream = {0}'
                      .format(self.config['upstream']))
 
-        url_regex = re.compile('(http|https|ftp)?(://)?[\w\d\.\-_]+:?(\d+)?/*')
+        url_regex = re.compile('(http|https)?(://)?[\w\d\.\-_]+:?(\d+)?/*')
         if self.config['upstream']:
             if not url_regex.match(self.config['upstream']):
                 LOG.error('Invalid URL - {0:}'.format(self.config['upstream']))
