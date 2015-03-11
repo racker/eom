@@ -64,6 +64,12 @@ OPTIONS = [
 LOG = logging.getLogger(__name__)
 
 
+def _http_gate_failure(start_response):
+    """Responds with HTTP 404"""
+    start_response('404 Not Found', [('Content-Length', '0')])
+    return []
+
+
 def wrap(app_backdoor, app_gated):
     """Creates a backdoor to a set of routes for the app.
 
@@ -88,7 +94,7 @@ def wrap(app_backdoor, app_gated):
                 if not contains_x_forward:
                     return app_backdoor(env, start_response)
                 else:
-                    return start_response('404 Not Found', [])
+                    return _http_gate_failure(start_response)
 
         # NOTE(cabrera): not special route - keep calm and WSGI on
         return app_gated(env, start_response)
