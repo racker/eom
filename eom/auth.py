@@ -385,8 +385,12 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
             service_catalog_data = json.dumps(
                 access_info.service_catalog.catalog)
 
+            # convert service catalog to unicode to try to help
+            # prevent encode/decode errors under python2
+            u_service_catalog_data = u'{0}'.format(service_catalog_data)
+
             # Convert the JSON string data to strict UTF-8
-            utf8_data = service_catalog_data.encode(
+            utf8_data = u_service_catalog_data.encode(
                 encoding='utf-8', errors='strict')
 
             # Store it as Base64 for transport

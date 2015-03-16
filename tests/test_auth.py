@@ -563,8 +563,10 @@ class TestAuth(util.TestCase):
 
         # Encode a version of the data for verification tests later
         data = access_info.service_catalog.catalog
-        access_data_utf8 = json.dumps(data).encode(encoding='utf-8',
-                                                   errors='strict')
+        json_data = json.dumps(data)
+        u_json_data = u'{0}'.format(json_data)
+        access_data_utf8 = u_json_data.encode(encoding='utf-8',
+                                              errors='strict')
         access_data_b64 = base64.b64encode(access_data_utf8)
 
         # We have data
