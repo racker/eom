@@ -26,6 +26,7 @@ from oslo.config import cfg
 import redis
 from redis import connection
 import simplejson as json
+import six
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -387,7 +388,10 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
 
             # convert service catalog to unicode to try to help
             # prevent encode/decode errors under python2
-            u_service_catalog_data = u'{0}'.format(service_catalog_data)
+            if six.PY2:  # pragma: no cover
+                u_service_catalog_data = service_catalog_data.decode('utf-8')
+            else:  # pragma: no cover
+                u_service_catalog_data = service_catalog_data
 
             # Convert the JSON string data to strict UTF-8
             utf8_data = u_service_catalog_data.encode(
