@@ -6,6 +6,10 @@ ddt
 testtools
 mock
 
+# HTTP interface testing
+stackinabox
+requests-mock
+
 # Test runner
 nose
 nose-exclude

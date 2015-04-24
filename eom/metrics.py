@@ -5,7 +5,7 @@ import time
 from oslo.config import cfg
 import statsd
 
-OPT_GROUP_NAME = 'eom:statsd'
+OPT_GROUP_NAME = 'eom:metrics'
 OPTIONS = [
     cfg.StrOpt('address',
                help='host:port for statsd server.',
@@ -20,7 +20,11 @@ OPTIONS = [
 
     cfg.StrOpt("prefix",
                help="Prefix for graphite metrics",
-               required=False)
+               required=False),
+
+    cfg.StrOpt('app_name',
+               help="Application name",
+               required=True)
 ]
 
 
@@ -31,6 +35,7 @@ def wrap(app):
     keys = conf[OPT_GROUP_NAME].path_regexes_keys or []
     values = conf[OPT_GROUP_NAME].path_regexes_values or []
     prefix = conf[OPT_GROUP_NAME].prefix or ""
+    app_name = conf[OPT_GROUP_NAME].app_name
 
     regex_strings = zip(keys, values)
     regex = []
@@ -43,10 +48,12 @@ def wrap(app):
     for request_method in ["GET", "PUT", "HEAD", "POST", "DELETE", "PATCH"]:
         for name, regexstr in regex_strings:
             for code in ["2xx", "4xx", "5xx"]:
-                client.incr("marconi." + socket.gethostname() + ".requests." +
-                            request_method + "." + name + "." + code)
-                client.decr("marconi." + socket.gethostname() + ".requests." +
-                            request_method + "." + name + "." + code)
+                client.incr(app_name + "." + socket.gethostname() +
+                            ".requests." + request_method + "." +
+                            name + "." + code)
+                client.decr(app_name + "." + socket.gethostname() +
+                            ".requests." + request_method + "." +
+                            name + "." + code)
 
     def middleware(env, start_response):
 
@@ -60,7 +67,7 @@ def wrap(app):
                 api_method = method
 
         def _start_response(status, headers, *args):
-            status_path = ("marconi." + hostname + ".requests." +
+            status_path = (app_name + "." + hostname + ".requests." +
                            request_method + "." + api_method)
             status_code = int(status[:3])
             if status_code / 500 == 1:
@@ -77,7 +84,8 @@ def wrap(app):
         stop = time.time() * 1000
 
         elapsed = stop - start
-        client.timing("marconi."+hostname+".latency."+request_method, elapsed)
+        client.timing(app_name + "." + hostname + ".latency." +
+                      request_method, elapsed)
         return response
 
     return middleware
