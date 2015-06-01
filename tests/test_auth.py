@@ -114,6 +114,7 @@ class TestAuth(util.TestCase):
         redis_client = fakeredis_connection()
         self.auth = auth.wrap(tests.util.app, redis_client)
         self.test_url = '/v2/vault'
+        self.default_max_cache_life = 30
 
         # config = auth.CONF['eom:auth']
         # self.runtime_url = config['auth_url']
@@ -197,7 +198,8 @@ class TestAuth(util.TestCase):
                 'mock redis expire failure')
             redis_error = auth._send_data_to_cache(redis_client,
                                                    url,
-                                                   access_data)
+                                                   access_data,
+                                                   self.default_max_cache_life)
             self.assertFalse(redis_error)
 
         # Redis fails to set the data
@@ -206,11 +208,15 @@ class TestAuth(util.TestCase):
             MockRedisSet.side_effect = Exception('mock redis set data failed')
             redis_error = auth._send_data_to_cache(redis_client,
                                                    url,
-                                                   access_data)
+                                                   access_data,
+                                                   self.default_max_cache_life)
             self.assertFalse(redis_error)
 
         # Happy Path
-        store_result = auth._send_data_to_cache(redis_client, url, access_data)
+        store_result = auth._send_data_to_cache(redis_client,
+                                                url,
+                                                access_data,
+                                                self.default_max_cache_life)
         self.assertTrue(store_result)
         stored_data = redis_client.get(key_value)
         self.assertIsNotNone(stored_data)
@@ -281,7 +287,8 @@ class TestAuth(util.TestCase):
                 url,
                 tenant_id,
                 token,
-                bttl)
+                bttl,
+                self.default_max_cache_life)
             self.assertIsNone(keystone_create_error)
 
         with mock.patch(
@@ -293,7 +300,8 @@ class TestAuth(util.TestCase):
                 url,
                 tenant_id,
                 token,
-                bttl)
+                bttl,
+                self.default_max_cache_life)
             self.assertIsNone(keystone_create_error)
 
     def test_retrieve_keystone_bad_client(self):
@@ -313,7 +321,8 @@ class TestAuth(util.TestCase):
                 url,
                 tenant_id,
                 token,
-                bttl)
+                bttl,
+                self.default_max_cache_life)
             self.assertIsNone(keystone_create_error)
 
     def test_retrieve_keystone_bad_identity_access(self):
@@ -330,11 +339,13 @@ class TestAuth(util.TestCase):
             # Fail to get a valid Client object
             # Note: Client() uses the requests package to do an auth;
             #   on failure it is the requests module that fails.
-            keystone_error = auth._retrieve_data_from_keystone(redis_client,
-                                                               url,
-                                                               tenant_id,
-                                                               token,
-                                                               bttl)
+            keystone_error = auth._retrieve_data_from_keystone(
+                redis_client,
+                url,
+                tenant_id,
+                token,
+                bttl,
+                self.default_max_cache_life)
             self.assertIsNone(keystone_error)
 
     def test_retrieve_keystone_check_credentials(self):
@@ -392,7 +403,8 @@ class TestAuth(util.TestCase):
                     url,
                     creds['projectid'],
                     creds['authtoken'],
-                    bttl)
+                    bttl,
+                    self.default_max_cache_life)
                 if creds['is_none']:
                     self.assertIsNone(keystone_error)
                 else:
@@ -416,43 +428,51 @@ class TestAuth(util.TestCase):
                 # No data in cache, keystone can't retrieve
                 MockRetrieveCacheData.return_value = None
                 MockRetrieveKeystoneData.return_value = None
-                access_info = auth._get_access_info(redis_client,
-                                                    url,
-                                                    tenant_id,
-                                                    token,
-                                                    bttl)
+                access_info = auth._get_access_info(
+                    redis_client,
+                    url,
+                    tenant_id,
+                    token,
+                    bttl,
+                    self.default_max_cache_life)
                 self.assertIsNone(access_info)
 
                 # Data in cache, not expired
                 MockRetrieveCacheData.return_value = fake_access_data(False)
                 MockRetrieveKeystoneData.return_value = None
-                access_info = auth._get_access_info(redis_client,
-                                                    url,
-                                                    tenant_id,
-                                                    token,
-                                                    bttl)
+                access_info = auth._get_access_info(
+                    redis_client,
+                    url,
+                    tenant_id,
+                    token,
+                    bttl,
+                    self.default_max_cache_life)
                 self.assertEqual(access_info,
                                  MockRetrieveCacheData.return_value)
 
                 # No data in cache, keystone retrieves
                 MockRetrieveCacheData.return_value = None
                 MockRetrieveKeystoneData.return_value = fake_access_data(False)
-                access_info = auth._get_access_info(redis_client,
-                                                    url,
-                                                    tenant_id,
-                                                    token,
-                                                    bttl)
+                access_info = auth._get_access_info(
+                    redis_client,
+                    url,
+                    tenant_id,
+                    token,
+                    bttl,
+                    self.default_max_cache_life)
                 self.assertEqual(access_info,
                                  MockRetrieveKeystoneData.return_value)
 
                 # Expired data in cache, keystone can't retrieve
                 MockRetrieveCacheData.return_value = fake_access_data(True)
                 MockRetrieveKeystoneData.return_value = None
-                access_info = auth._get_access_info(redis_client,
-                                                    url,
-                                                    tenant_id,
-                                                    token,
-                                                    bttl)
+                access_info = auth._get_access_info(
+                    redis_client,
+                    url,
+                    tenant_id,
+                    token,
+                    bttl,
+                    self.default_max_cache_life)
                 self.assertNotEqual(access_info,
                                     MockRetrieveCacheData.return_value)
                 self.assertIsNone(access_info)
@@ -460,11 +480,13 @@ class TestAuth(util.TestCase):
                 # No data in cache, keystone returns expired data
                 MockRetrieveCacheData.return_value = None
                 MockRetrieveKeystoneData.return_value = fake_access_data(True)
-                access_info = auth._get_access_info(redis_client,
-                                                    url,
-                                                    tenant_id,
-                                                    token,
-                                                    bttl)
+                access_info = auth._get_access_info(
+                    redis_client,
+                    url,
+                    tenant_id,
+                    token,
+                    bttl,
+                    self.default_max_cache_life)
                 self.assertNotEqual(access_info,
                                     MockRetrieveKeystoneData.return_value)
                 self.assertIsNone(access_info)
@@ -472,11 +494,13 @@ class TestAuth(util.TestCase):
                 # Expired data in cache, keystone returns expired data
                 MockRetrieveCacheData.return_value = fake_access_data(True)
                 MockRetrieveKeystoneData.return_value = fake_access_data(True)
-                access_info = auth._get_access_info(redis_client,
-                                                    url,
-                                                    tenant_id,
-                                                    token,
-                                                    bttl)
+                access_info = auth._get_access_info(
+                    redis_client,
+                    url,
+                    tenant_id,
+                    token,
+                    bttl,
+                    self.default_max_cache_life)
                 self.assertNotEqual(access_info,
                                     MockRetrieveCacheData.return_value)
                 self.assertNotEqual(access_info,
@@ -503,7 +527,8 @@ class TestAuth(util.TestCase):
                                            tenant_id,
                                            token,
                                            env_exception_thrown,
-                                           bttl)
+                                           bttl,
+                                           self.default_max_cache_life)
             self.assertFalse(result)
 
     def test_validate_client_invalid_data(self):
@@ -525,7 +550,8 @@ class TestAuth(util.TestCase):
                                            tenant_id,
                                            token,
                                            env_no_data,
-                                           bttl)
+                                           bttl,
+                                           self.default_max_cache_life)
             self.assertFalse(result)
 
     def test_validate_client_token_blacklisted(self):
@@ -547,7 +573,8 @@ class TestAuth(util.TestCase):
                                            tenant_id,
                                            token,
                                            env_result,
-                                           bttl)
+                                           bttl,
+                                           self.default_max_cache_life)
             self.assertFalse(result)
 
     def test_validate_client_valid_data(self):
@@ -581,7 +608,8 @@ class TestAuth(util.TestCase):
                                                tenant_id,
                                                token,
                                                env_result,
-                                               bttl)
+                                               bttl,
+                                               self.default_max_cache_life)
                 self.assertTrue(result)
                 self.assertEqual(env_result['HTTP_X_IDENTITY_STATUS'],
                                  'Confirmed')
