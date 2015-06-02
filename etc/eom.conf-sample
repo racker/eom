@@ -1,6 +1,7 @@
 [eom:auth]
 auth_url = 'keystone.example.com/v2'
 blacklist_ttl = 3600000
+max_cache_life = 600
 
 [eom:auth_redis]
 host = 127.0.0.1
