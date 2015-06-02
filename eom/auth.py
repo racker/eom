@@ -31,6 +31,9 @@ import simplejson as json
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
+MAX_CACHE_LIFE_DEFAULT = ((datetime.datetime.max -
+                           datetime.datetime.utcnow()).total_seconds() - 30)
+
 AUTH_GROUP_NAME = 'eom:auth'
 AUTH_OPTIONS = [
     cfg.StrOpt('auth_url'),
@@ -40,9 +43,7 @@ AUTH_OPTIONS = [
                # that the datetime module can manage, with a buffer
                # of 30 seconds so we won't brush up against the end
                # or overflow when adding to utcnow() later on
-               default=(datetime.datetime.max -
-                        datetime.datetime.utcnow()).total_seconds()
-                        - 30)
+               default=MAX_CACHE_LIFE_DEFAULT)
 ]
 
 CONF.register_opts(AUTH_OPTIONS, group=AUTH_GROUP_NAME)
@@ -192,13 +193,6 @@ def _get_expiration_time(service_catalog_expiration_time, max_cache_life):
 
     if service_catalog_expiration_time.tzinfo is not None:  # pragma: no cover
         max_expire_time = max_expire_time.replace(tzinfo=UtcTzInfo())
-
-    print('Service Catalog Date Time: {0} - TZ info: {1}'.format(
-        service_catalog_expiration_time,
-        service_catalog_expiration_time.tzinfo))
-    print('UTC Now: {0} + Delta: {1} => {2}, - TZ info:{3}'.format(
-        now, max_cache_life, max_expire_time,
-        now.tzinfo))
 
     # return the nearest time to now
     return min(service_catalog_expiration_time,

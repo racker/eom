@@ -16,9 +16,11 @@
 
 from __future__ import division
 import base64
+import datetime
 import logging
 from wsgiref import simple_server
 
+import ddt
 import fakeredis
 from keystoneclient import access
 from keystoneclient import exceptions
@@ -107,6 +109,7 @@ class fake_access_data(object):
         return self.result
 
 
+@ddt.ddt
 class TestAuth(util.TestCase):
 
     def setUp(self):
@@ -175,6 +178,22 @@ class TestAuth(util.TestCase):
         self.assertEqual(stored_data, packed_data)
         stored_data_original = msgpack.unpackb(stored_data, encoding='utf-8')
         self.assertEqual(True, stored_data_original)
+
+    @ddt.data(
+        (datetime.datetime.max, 500, True),
+        ((datetime.datetime.utcnow() + datetime.timedelta(seconds=50)),
+         500, False),
+        ((datetime.datetime.utcnow() + datetime.timedelta(seconds=500)),
+         50, True)
+    )
+    @ddt.unpack
+    def test_expiration_time(self, time_to_check,
+                             slop, slop_makes_younger_time):
+        auth_time = auth._get_expiration_time(time_to_check, slop)
+        if slop_makes_younger_time:
+            self.assertLess(auth_time, time_to_check)
+        else:
+            self.assertEqual(auth_time, time_to_check)
 
     def test_store_data_to_cache(self):
         url = 'myfakeurl'
