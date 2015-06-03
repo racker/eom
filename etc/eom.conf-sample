@@ -32,7 +32,8 @@ restricted_routes = /v1/stats, /v1/health
 options_file = map.json-sample
 
 [eom:metrics]
-address = http://localhost/statsd
+address = localhost
+port = 8125
 path_regexes_keys = *
 path_regexes_values = ^/
 prefix = None
