@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import base64
+import datetime
 import functools
 import logging
 
@@ -31,10 +32,19 @@ import six
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
+MAX_CACHE_LIFE_DEFAULT = ((datetime.datetime.max -
+                           datetime.datetime.utcnow()).total_seconds() - 30)
+
 AUTH_GROUP_NAME = 'eom:auth'
 AUTH_OPTIONS = [
     cfg.StrOpt('auth_url'),
     cfg.IntOpt('blacklist_ttl'),
+    cfg.IntOpt('max_cache_life',
+               # default value is the maximum number of seconds
+               # that the datetime module can manage, with a buffer
+               # of 30 seconds so we won't brush up against the end
+               # or overflow when adding to utcnow() later on
+               default=MAX_CACHE_LIFE_DEFAULT)
 ]
 
 CONF.register_opts(AUTH_OPTIONS, group=AUTH_GROUP_NAME)
@@ -154,13 +164,51 @@ def _is_token_blacklisted(redis_client, token):
         return True
 
 
-def _send_data_to_cache(redis_client, url, access_info):
+def _get_expiration_time(service_catalog_expiration_time, max_cache_life):
+    """Determines the cache expiration time
+
+    :param service_catalog_expiration_time: DateTime object containing the
+           expiration time from the service catalog
+    :param max_cache_life: time in seconds for the maximum time a cache entry
+                           should remain in the cache of valid data
+
+    :returns: DateTime object with the time that the cache should be
+              expired at. This is the nearest time of either the
+              expiration of the service catalog or the combination of
+              the current time and the max_cache_life parameter
+    """
+    class UtcTzInfo(datetime.tzinfo):
+
+        def utcoffset(self, dt):
+            return datetime.timedelta(0)
+
+        def tzname(self, dt):
+            return 'UTC'
+
+        def dst(self, dt):
+            return datetime.timedelta(0)
+
+    # calculate the time based on the max_cache_life
+    now = datetime.datetime.utcnow()
+    max_expire_time = now + datetime.timedelta(seconds=max_cache_life)
+
+    if service_catalog_expiration_time.tzinfo is not None:  # pragma: no cover
+        max_expire_time = max_expire_time.replace(tzinfo=UtcTzInfo())
+
+    # return the nearest time to now
+    return min(service_catalog_expiration_time,
+               max_expire_time)
+
+
+def _send_data_to_cache(redis_client, url, access_info, max_cache_life):
     """Stores the authentication data to cache
 
     :param redis_client: redis.Redis object connected to the redis cache
     :param url: URL used for authentication
     :param access_info: keystoneclient.access.AccessInfo containing
         the auth data
+    :param max_cache_life: time in seconds for the maximum time a cache entry
+                           should remain in the cache of valid data
 
     :returns: True on success, otherwise False
     """
@@ -172,10 +220,14 @@ def _send_data_to_cache(redis_client, url, access_info):
         token = access_info.auth_token
 
         # Build the cache key and store the value
-        # Use the token's expiration time for the cache expiration
         cache_key = _tuple_to_cache_key((tenant, token, url))
         redis_client.set(cache_key, cache_data)
-        redis_client.pexpireat(cache_key, access_info.expires)
+
+        # Get the cache expiration time
+        cache_expiration_time = _get_expiration_time(access_info.expires,
+                                                     max_cache_life)
+
+        redis_client.pexpireat(cache_key, cache_expiration_time)
 
         return True
 
@@ -235,7 +287,7 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
 
 
 def _retrieve_data_from_keystone(redis_client, url, tenant, token,
-                                 blacklist_ttl):
+                                 blacklist_ttl, max_cache_life):
     """Retrieve the authentication data from OpenStack Keystone
 
     :param redis_client: redis.Redis object connected to the redis cache
@@ -243,6 +295,8 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
     :param tenant: tenant id of user data to retrieve
     :param token: auth_token for the tenant_id
     :param blacklist_ttl: time in milliseconds for blacklisting failed tokens
+    :param max_cache_life: time in seconds for the maximum time a cache entry
+                           should remain in the cache of valid data
 
     :returns: a keystoneclient.access.AccessInfo on success or None on error
     """
@@ -257,7 +311,7 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
             auth_url=url, tenant_id=tenant, token=token)
 
         # cache the data so it is easier to access next time
-        _send_data_to_cache(redis_client, url, access_info)
+        _send_data_to_cache(redis_client, url, access_info, max_cache_life)
 
         return access_info
 
@@ -284,7 +338,8 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
         return None
 
 
-def _get_access_info(redis_client, url, tenant, token, blacklist_ttl):
+def _get_access_info(redis_client, url, tenant, token, blacklist_ttl,
+                     max_cache_life):
     """Retrieve the access information regarding the specified user
 
     :param redis_client: redis.Redis object connected to the redis cache
@@ -292,6 +347,8 @@ def _get_access_info(redis_client, url, tenant, token, blacklist_ttl):
     :param tenant: tenant id of user data to retrieve
     :param token: auth_token for the tenant_id
     :param blacklist_ttl: time in milliseconds for blacklisting failed tokens
+    :param max_cache_life: time in seconds for the maximum time a cache entry
+                           should remain in the cache of valid data
 
     :returns: keystoneclient.access.AccessInfo for the user on success
               None on error
@@ -317,7 +374,8 @@ def _get_access_info(redis_client, url, tenant, token, blacklist_ttl):
                                                    url,
                                                    tenant,
                                                    token,
-                                                   blacklist_ttl)
+                                                   blacklist_ttl,
+                                                   max_cache_life)
     else:
         LOG.debug('Retrieved token from cache.')
 
@@ -333,7 +391,8 @@ def _get_access_info(redis_client, url, tenant, token, blacklist_ttl):
     return access_info
 
 
-def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
+def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl,
+                     max_cache_life):
     """Update the env with the access information for the user
 
     :param redis_client: redis.Redis object connected to the redis cache
@@ -342,6 +401,8 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
     :param token: auth_token for the tenant_id
     :param env: environment variable dictionary for the client connection
     :param blacklist_ttl: time in milliseconds for blacklisting failed tokens
+    :param max_cache_life: time in seconds for the maximum time a cache entry
+                           should remain in the cache of valid data
 
     :returns: True on success, otherwise False
     """
@@ -364,7 +425,8 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl):
                                        url,
                                        tenant,
                                        token,
-                                       blacklist_ttl)
+                                       blacklist_ttl,
+                                       max_cache_life)
 
         if access_info is None:
             LOG.debug(_('Unable to get Access information for '
@@ -457,6 +519,7 @@ def wrap(app, redis_client):
     group = CONF[AUTH_GROUP_NAME]
     auth_url = group['auth_url']
     blacklist_ttl = group['blacklist_ttl']
+    max_cache_life = group['max_cache_life']
 
     LOG.debug('Auth URL: {0:}'.format(auth_url))
 
@@ -471,7 +534,8 @@ def wrap(app, redis_client):
                                 tenant,
                                 token,
                                 env,
-                                blacklist_ttl):
+                                blacklist_ttl,
+                                max_cache_life):
                 LOG.debug(_('Auth Token validated.'))
                 return app(env, start_response)
 

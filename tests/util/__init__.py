@@ -19,6 +19,7 @@ import os
 from oslo.config import cfg
 import testtools
 
+
 CONF = cfg.CONF
 
 
@@ -90,7 +91,7 @@ class TestCase(testtools.TestCase):
 
         module_dir = os.path.abspath(os.path.dirname(__file__))
         parent = os.path.dirname(module_dir)
-        return os.path.join(parent, 'etc', filename)
+        return os.path.join(parent, '../etc', filename)
 
     def create_env(self, path, roles=None, project_id=None, auth_token=None,
                    method='GET'):

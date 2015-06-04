@@ -1,6 +1,7 @@
 [eom:auth]
 auth_url = 'keystone.example.com/v2'
 blacklist_ttl = 3600000
+max_cache_life = 600
 
 [eom:auth_redis]
 host = 127.0.0.1
@@ -29,3 +30,11 @@ restricted_routes = /v1/stats, /v1/health
 
 [eom:uwsgi:mapper]
 options_file = map.json-sample
+
+[eom:metrics]
+address = localhost
+port = 8125
+path_regexes_keys = *
+path_regexes_values = ^/
+prefix = None
+app_name = example_app
