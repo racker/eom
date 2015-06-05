@@ -1,3 +1,14 @@
+[DEFAULT]
+# Show more verbose log output (sets INFO log level output)
+;verbose = False
+
+# Show debugging output in logs (sets DEBUG log level output)
+;debug = False
+
+# Log to this file
+log_file = /var/log/eom/eom.log
+log_config_append = /etc/eom/logging.conf
+
 [eom:auth]
 auth_url = 'keystone.example.com/v2'
 blacklist_ttl = 3600000
