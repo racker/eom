@@ -1,49 +1,40 @@
-[loggers]
-keys=root,server,combined
+[logging]
+    log_directory = /etc/eom/log
 
-[formatters]
-keys=normal,normal_with_name,debug
+[loggers]
+    [[root]]
+        level = DEBUG
+        handlers = rotatelogfile,
+    [[eom]]
+        level = DEBUG
+        handlers = rotatelogfile,
+     [[py.warnings]]
+        handlers = rotatelogfile,
 
 [handlers]
-keys=production,file,devel
+    [[console]]
+        level = DEBUG
+        class = logging.StreamHandler
+        formatter = standard
+    [[logfile]]
+        level = DEBUG
+        class = logging.FileHandler
+        formatter = standard
+        filename = /var/log/eom/eom.log
+    [[syslog]]
+        level = DEBUG
+        class = logging.handlers.SysLogHandler
+        formatter = standard
+        address = /dev/log
+    [[rotatelogfile]]
+        level = DEBUG
+        class = logging.handlers.RotatingFileHandler
+        formatter = standard
+        maxBytes = 400000000
+        backupCount = 2
+        filename = /var/log/eom/eom.log
 
-[logger_root]
-level=NOTSET
-handlers=file
+[formatters]
+    [[standard]]
+        format = '%(asctime)s %(levelname)-5.5s [%(name)s/%(lineno)d][%(threadName)s] : %(message)s'
 
-[logger_server]
-level=DEBUG
-handlers=file
-qualname=eom
-
-[logger_combined]
-level=DEBUG
-handlers=file
-qualname=eom-combined
-
-[handler_production]
-class=handlers.SysLogHandler
-level=ERROR
-formatter=normal_with_name
-args=(('localhost', handlers.SYSLOG_UDP_PORT), handlers.SysLogHandler.LOG_USER)
-
-[handler_file]
-class=FileHandler
-level=INFO
-formatter=debug
-args=('/var/log/eom/eom.log', 'a+')
-
-[handler_devel]
-class=StreamHandler
-level=NOTSET
-formatter=debug
-args=(sys.stdout,)
-
-[formatter_normal]
-format=%(asctime)s %(levelname)s %(message)s
-
-[formatter_normal_with_name]
-format=(%(name)s): %(asctime)s %(levelname)s %(message)s
-
-[formatter_debug]
-format=(%(name)s): %(asctime)s %(levelname)s %(module)s %(funcName)s %(message)s

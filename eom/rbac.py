@@ -20,7 +20,8 @@ import re
 from oslo.config import cfg
 import simplejson as json
 
-LOG = logging.getLogger(__name__)
+from eom.utils import log as logging
+
 CONF = cfg.CONF
 
 OPT_GROUP_NAME = 'eom:rbac'
@@ -29,6 +30,10 @@ OPTION_NAME = 'acls_file'
 CONF.register_opt(cfg.StrOpt(OPTION_NAME), group=OPT_GROUP_NAME)
 
 EMPTY_SET = set()
+
+logging.register(CONF, OPT_GROUP_NAME)
+logging.setup(CONF, OPT_GROUP_NAME)
+LOG = logging.getLogger(__name__)
 
 
 def _load_rules(path):
