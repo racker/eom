@@ -462,6 +462,18 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl,
             # Store it as Base64 for transport
             env['HTTP_X_SERVICE_CATALOG'] = base64.b64encode(utf8_data)
 
+            try:
+                decode_check = base64.b64decode(env['HTTP_X_SERVICE_CATALOG'])
+
+            except Exception:
+                LOG.debug(_('Failed to decode the data properly'))
+                return False
+
+            if decode_check != utf8_data:
+                LOG.debug(_('Decode Check: decoded data does not match '
+                            'encoded data'))
+                return False
+
         # Project Scoped V3 or Tenant Scoped v2
         # This can be assumed since we validated using X_PROJECT_ID
         # and therefore have at least a v2 Tenant Scoped Token
