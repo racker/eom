@@ -27,6 +27,7 @@ from keystoneclient import exceptions
 import mock
 import msgpack.exceptions
 import simplejson as json
+import six
 
 from eom import auth
 import tests
@@ -596,6 +597,51 @@ class TestAuth(util.TestCase):
                                            self.default_max_cache_life)
             self.assertFalse(result)
 
+    def test_validate_client_b64decode_error(self):
+        url = 'myurl'
+        tenant_id = '172839405'
+        token = 'AaBbCcDdEeFf'
+
+        redis_client = fakeredis_connection()
+        bttl = 5
+
+        # The data that will get cached
+        access_info = fake_catalog(tenant_id, token)
+
+        # Encode a version of the data for verification tests later
+        data = access_info.service_catalog.catalog
+        json_data = json.dumps(data)
+        u_json_data = json_data
+        if six.PY2:
+            if isinstance(u_json_data, bytes):
+                u_json_data = json_data.decode('utf-8')
+        access_data_utf8 = u_json_data.encode(encoding='utf-8',
+                                              errors='strict')
+        access_data_b64 = base64.b64encode(access_data_utf8)
+
+        # We have data
+        with mock.patch(
+                'eom.auth._get_access_info') as MockGetAccessInfo:
+            with mock.patch(
+                    'eom.auth._is_token_blacklisted') as MockBlacklist:
+                with mock.patch(
+                        'base64.b64decode') as MockB64Decode:
+
+                    MockB64Decode.side_effect = Exception(
+                        'mock b64decode error')
+
+                    env_result = {}
+                    MockBlacklist.return_value = False
+                    MockGetAccessInfo.return_value = access_info
+                    result = auth._validate_client(redis_client,
+                                                   url,
+                                                   tenant_id,
+                                                   token,
+                                                   env_result,
+                                                   bttl,
+                                                   self.default_max_cache_life)
+                    self.assertFalse(result)
+
     def test_validate_client_valid_data(self):
         url = 'myurl'
         tenant_id = '172839405'
@@ -609,8 +655,13 @@ class TestAuth(util.TestCase):
 
         # Encode a version of the data for verification tests later
         data = access_info.service_catalog.catalog
-        access_data_utf8 = json.dumps(data).encode(encoding='utf-8',
-                                                   errors='strict')
+        json_data = json.dumps(data)
+        u_json_data = json_data
+        if six.PY2:
+            if isinstance(u_json_data, bytes):
+                u_json_data = json_data.decode('utf-8')
+        access_data_utf8 = u_json_data.encode(encoding='utf-8',
+                                              errors='strict')
         access_data_b64 = base64.b64encode(access_data_utf8)
 
         # We have data

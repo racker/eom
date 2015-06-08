@@ -27,6 +27,7 @@ from oslo.config import cfg
 import redis
 from redis import connection
 import simplejson as json
+import six
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -447,12 +448,31 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl,
             service_catalog_data = json.dumps(
                 access_info.service_catalog.catalog)
 
+            # convert service catalog to unicode to try to help
+            # prevent encode/decode errors under python2
+            if six.PY2:  # pragma: no cover
+                u_service_catalog_data = service_catalog_data.decode('utf-8')
+            else:  # pragma: no cover
+                u_service_catalog_data = service_catalog_data
+
             # Convert the JSON string data to strict UTF-8
-            utf8_data = service_catalog_data.encode(
+            utf8_data = u_service_catalog_data.encode(
                 encoding='utf-8', errors='strict')
 
             # Store it as Base64 for transport
             env['HTTP_X_SERVICE_CATALOG'] = base64.b64encode(utf8_data)
+
+            try:
+                decode_check = base64.b64decode(env['HTTP_X_SERVICE_CATALOG'])
+
+            except Exception:
+                LOG.debug(_('Failed to decode the data properly'))
+                return False
+
+            if decode_check != utf8_data:
+                LOG.debug(_('Decode Check: decoded data does not match '
+                            'encoded data'))
+                return False
 
         # Project Scoped V3 or Tenant Scoped v2
         # This can be assumed since we validated using X_PROJECT_ID
