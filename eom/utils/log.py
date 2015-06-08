@@ -16,5 +16,5 @@ def setup(config, app_section):
     disable_existing = config[app_section]['log_config_disable_existing']
 
     if log_config_file is not None:
-        config.fileConfig(log_config_file,
-                          disable_existing_loggers=disable_existing)
+        logging.config.fileConfig(log_config_file,
+                                  disable_existing_loggers=disable_existing)
