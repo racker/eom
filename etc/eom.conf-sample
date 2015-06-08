@@ -2,6 +2,8 @@
 auth_url = 'keystone.example.com/v2'
 blacklist_ttl = 3600000
 max_cache_life = 600
+log_config_file = /etc/eom/logging.conf
+log_config_disable_existing = False
 
 [eom:auth_redis]
 host = 127.0.0.1
@@ -15,11 +17,15 @@ ssl_enable = False
 
 [eom:rbac]
 acls_file = rbac.json-sample
+log_config_file = /etc/eom/logging.conf
+log_config_disable_existing = False
 
 [eom:governor]
 rates_file = governor.json-sample
 project_rates_file = governor-project.json-sample
 throttle_milliseconds = 100
+log_config_file = /etc/eom/logging.conf
+log_config_disable_existing = False
 
 [eom:redis]
 host = 127.0.0.1
@@ -27,6 +33,8 @@ port = 6379
 
 [eom:bastion]
 restricted_routes = /v1/stats, /v1/health
+log_config_file = /etc/eom/logging.conf
+log_config_disable_existing = False
 
 [eom:uwsgi:mapper]
 options_file = map.json-sample
@@ -38,3 +46,5 @@ path_regexes_keys = *
 path_regexes_values = ^/
 prefix = None
 app_name = example_app
+log_config_file = /etc/eom/logging.conf
+log_config_disable_existing = False

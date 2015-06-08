@@ -5,6 +5,10 @@ import time
 from oslo.config import cfg
 import statsd
 
+from eom.utils import log as logging
+
+CONF = cfg.CONF
+
 OPT_GROUP_NAME = 'eom:metrics'
 OPTIONS = [
     cfg.StrOpt('address',
@@ -35,16 +39,20 @@ OPTIONS = [
                required=True)
 ]
 
+CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
+
+logging.register(CONF, OPT_GROUP_NAME)
+logging.setup(CONF, OPT_GROUP_NAME)
+LOG = logging.getLogger(__name__)
+
 
 def wrap(app):
-    conf = cfg.CONF
-    conf.register_opts(OPTIONS, group=OPT_GROUP_NAME)
-    addr = conf[OPT_GROUP_NAME].address
-    port = conf[OPT_GROUP_NAME].port
-    keys = conf[OPT_GROUP_NAME].path_regexes_keys
-    values = conf[OPT_GROUP_NAME].path_regexes_values
-    prefix = conf[OPT_GROUP_NAME].prefix
-    app_name = conf[OPT_GROUP_NAME].app_name
+    addr = CONF[OPT_GROUP_NAME].address
+    port = CONF[OPT_GROUP_NAME].port
+    keys = CONF[OPT_GROUP_NAME].path_regexes_keys
+    values = CONF[OPT_GROUP_NAME].path_regexes_values
+    prefix = CONF[OPT_GROUP_NAME].prefix
+    app_name = CONF[OPT_GROUP_NAME].app_name
 
     regex_strings = zip(keys, values)
     regex = []

@@ -17,7 +17,6 @@
 import base64
 import datetime
 import functools
-import logging
 
 from keystoneclient import access
 from keystoneclient import exceptions
@@ -29,7 +28,8 @@ from redis import connection
 import simplejson as json
 import six
 
-LOG = logging.getLogger(__name__)
+from eom.utils import log as logging
+
 CONF = cfg.CONF
 
 MAX_CACHE_LIFE_DEFAULT = ((datetime.datetime.max -
@@ -63,6 +63,10 @@ REDIS_OPTIONS = [
 ]
 
 CONF.register_opts(REDIS_OPTIONS, group=REDIS_GROUP_NAME)
+
+logging.register(CONF, AUTH_GROUP_NAME)
+logging.setup(CONF, AUTH_GROUP_NAME) 
+LOG = logging.getLogger(__name__)
 
 
 class InvalidKeystoneClient(Exception):
@@ -532,6 +536,7 @@ def wrap(app, redis_client):
     auth_url = group['auth_url']
     blacklist_ttl = group['blacklist_ttl']
     max_cache_life = group['max_cache_life']
+    
 
     LOG.debug('Auth URL: {0:}'.format(auth_url))
 

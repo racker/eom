@@ -49,10 +49,11 @@ Routes may also be separated by newlines, e.g.:
 
 """
 
-import logging
-
 from oslo.config import cfg
 
+from eom.utils import log as logging
+
+CONF = cfg.CONF
 
 OPT_GROUP_NAME = 'eom:bastion'
 OPTIONS = [
@@ -61,6 +62,10 @@ OPTIONS = [
                 default=[])
 ]
 
+CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
+
+logging.register(CONF, OPT_GROUP_NAME)
+logging.setup(CONF, OPT_GROUP_NAME)
 LOG = logging.getLogger(__name__)
 
 
@@ -80,10 +85,7 @@ def wrap(app_backdoor, app_gated):
     :returns: a new WSGI app that wraps the original with bastion powers
     :rtype: wsgi_app
     """
-    conf = cfg.CONF
-
-    conf.register_opts(OPTIONS, group=OPT_GROUP_NAME)
-    restricted_routes = conf[OPT_GROUP_NAME].restricted_routes
+    restricted_routes = CONF[OPT_GROUP_NAME].restricted_routes
 
     # WSGI callable
     def middleware(env, start_response):

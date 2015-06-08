@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from __future__ import division
-import logging
 import re
 import time
 
@@ -23,6 +22,8 @@ from oslo.config import cfg
 import redis
 import simplejson as json
 import six
+
+from eom.utils import log as logging
 
 
 CONF = cfg.CONF
@@ -45,6 +46,8 @@ OPTIONS = [
 CONF.register_opts(OPTIONS, group=REDIS_GROUP_NAME)
 
 
+logging.register(CONF, GOV_GROUP_NAME)
+logging.setup(CONF, GOV_GROUP_NAME)
 LOG = logging.getLogger(__name__)
 
 
