@@ -36,6 +36,7 @@ from tests import util
 
 
 LOG = logging.getLogger(__name__)
+auth.configure(util.CONF)
 
 
 def run_server(app, host, port):
@@ -607,17 +608,6 @@ class TestAuth(util.TestCase):
 
         # The data that will get cached
         access_info = fake_catalog(tenant_id, token)
-
-        # Encode a version of the data for verification tests later
-        data = access_info.service_catalog.catalog
-        json_data = json.dumps(data)
-        u_json_data = json_data
-        if six.PY2:
-            if isinstance(u_json_data, bytes):
-                u_json_data = json_data.decode('utf-8')
-        access_data_utf8 = u_json_data.encode(encoding='utf-8',
-                                              errors='strict')
-        access_data_b64 = base64.b64encode(access_data_utf8)
 
         # We have data
         with mock.patch(

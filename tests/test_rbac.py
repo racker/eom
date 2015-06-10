@@ -18,6 +18,9 @@ import eom.rbac
 from tests import util
 
 
+eom.rbac.configure(util.CONF)
+
+
 class TestRBAC(util.TestCase):
 
     def setUp(self):

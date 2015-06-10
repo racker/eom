@@ -30,7 +30,7 @@ import requests
 import six
 
 from eom import governor
-import tests
+from tests import util
 
 
 def run_server(app, host, port):
@@ -118,12 +118,13 @@ def route_annotate(rate, route, expect):
 
 
 @ddt.ddt
-class TestGovernor(tests.util.TestCase):
+class TestGovernor(util.TestCase):
 
     def setUp(self):
         super(TestGovernor, self).setUp()
         redis_client = fakeredis_connection()
-        self.governor = governor.wrap(tests.util.app, redis_client)
+        governor.configure(util.CONF)
+        self.governor = governor.wrap(util.app, redis_client)
 
         config = governor.CONF['eom:governor']
         rates = governor._load_rates(config['rates_file'])

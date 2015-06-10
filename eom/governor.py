@@ -27,28 +27,33 @@ from eom.utils import log as logging
 
 
 CONF = cfg.CONF
+LOG = logging.getLogger(__name__)
 
 GOV_GROUP_NAME = 'eom:governor'
-OPTIONS = [
+GOV_OPTIONS = [
     cfg.StrOpt('rates_file'),
     cfg.StrOpt('project_rates_file'),
     cfg.IntOpt('throttle_milliseconds')
 ]
 
-CONF.register_opts(OPTIONS, group=GOV_GROUP_NAME)
-
 REDIS_GROUP_NAME = 'eom:redis'
-OPTIONS = [
+REDIS_OPTIONS = [
     cfg.StrOpt('host'),
     cfg.StrOpt('port'),
 ]
 
-CONF.register_opts(OPTIONS, group=REDIS_GROUP_NAME)
 
+def configure(config):
+    global CONF
+    global LOG
 
-logging.register(CONF, GOV_GROUP_NAME)
-logging.setup(CONF, GOV_GROUP_NAME)
-LOG = logging.getLogger(__name__)
+    CONF = config
+    CONF.register_opts(GOV_OPTIONS, group=GOV_GROUP_NAME)
+    CONF.register_opts(REDIS_OPTIONS, group=REDIS_GROUP_NAME)
+
+    logging.register(CONF, GOV_GROUP_NAME)
+    logging.setup(CONF, GOV_GROUP_NAME)
+    LOG = logging.getLogger(__name__)
 
 
 def applies_to(rate, method, route):

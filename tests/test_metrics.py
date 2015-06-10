@@ -8,6 +8,9 @@ from tests.util.httpstatsd import HttpStatsdService
 from tests.util.statsd_http_client import HttpStatsdClient
 
 
+metrics.configure(util.CONF)
+
+
 class TestMetrics(util.TestCase):
 
     def setUp(self):
