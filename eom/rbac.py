@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import re
 
 from oslo.config import cfg
@@ -23,17 +22,24 @@ import simplejson as json
 from eom.utils import log as logging
 
 CONF = cfg.CONF
+LOG = logging.getLogger(__name__)
 
 OPT_GROUP_NAME = 'eom:rbac'
 OPTION_NAME = 'acls_file'
 
-CONF.register_opt(cfg.StrOpt(OPTION_NAME), group=OPT_GROUP_NAME)
-
 EMPTY_SET = set()
 
-logging.register(CONF, OPT_GROUP_NAME)
-logging.setup(CONF, OPT_GROUP_NAME)
-LOG = logging.getLogger(__name__)
+
+def configure(config):
+    global CONF
+    global LOG
+
+    CONF = config
+    CONF.register_opt(cfg.StrOpt(OPTION_NAME), group=OPT_GROUP_NAME)
+
+    logging.register(CONF, OPT_GROUP_NAME)
+    logging.setup(CONF, OPT_GROUP_NAME)
+    LOG = logging.getLogger(__name__)
 
 
 def _load_rules(path):

@@ -34,6 +34,48 @@ with OpenStack guidelines.
 Each project contained here has its own sections in the configuration files, and may provide some additional
 configuration files.
 
+Note that as of 0.6.1, each module must be specifically configured after it is imported into the WSGI app.
+The following is an example of the EOM Auth module being loaded in this manner:
+
+.. code-block:: python
+
+    import eom.auth
+    from oslo.config import cfg
+    import myapp
+
+    CONF = cfg.CONF
+    CONF(project='mywsgiapp', args=[])
+    eom.auth.configure(CONF)
+
+    app = eom.auth.wraps(myapp.app)
+
+Failure to call the configuration function on the modules will still allow the functionality to run; however,
+they may not have the expected settings.
+
+-------------------
+Logging EOM Modules
+-------------------
+
+The EOM WSGI Middleware modules have two settings to enable logging functionality via their configuration sections.
+
+Configuration
+-------------
+
+.. code-block:: ini
+
+    [eom:module]
+    log_config_file = /etc/eom/logging.conf
+    log_config_disable_existing = False
+
+The value of the log_config_file is the path to a file containing the configuration to be loaded via the built-in
+Python logging.config functionality, specifically logging.config.fileConfig(). Any file that can be loaded via the
+ConfigParser can be utilized.
+
+The value of log_config_disable_existing is a boolean value that determines whether or not the configurator clears
+any existing logging handlers, etc before loading the specified configuration.
+
+More information is available at https://docs.python.org/2/library/logging.config.html#logging.config.fileConfig.
+
 ====
 Auth
 ====
@@ -79,6 +121,8 @@ EOM Auth needs only a couple values in the auth section of the eom.conf file to 
 	[auth]
 	auth_url = 'https://openstack.keystone.url/v2.0'
 	blacklist_ttl = 3600000 
+    log_config_file = /etc/eom/logging.conf
+    log_config_disable_existing = False
 
 The auth_url specifies the full Keystone API including version. All calls made are in the context of the user
 being authenticated. To minimize calls, successful authentication information is cached.
@@ -145,6 +189,8 @@ Configuration
 
 	[eom:bastion]
 	restricted_routes = /v1/pin, /v1/health
+    log_config_file = /etc/eom/logging.conf
+    log_config_disable_existing = False
 
 ========
 Governor
@@ -222,6 +268,8 @@ Configuration
 	rates_file = /home/bmeyer/.eom/governor.json
 	project_rates_file = /home/bmeyer/.eom/governor_project.json
 	throttle_milliseconds = 5
+    log_config_file = /etc/eom/logging.conf
+    log_config_disable_existing = False
 
 	[eom:redis]
 	host = 192.168.3.11
@@ -231,7 +279,23 @@ Configuration
 Metrics
 =======
 
-TBD
+EOM Metrics provides a way to collect statistical data on the end-points in the WSGI application via a StatsD collector service.
+
+-------------
+Configuration
+-------------
+
+.. code-block:: ini
+
+    [eom:metrics]
+    address = localhost
+    port = 80
+    path_regexes_keys = 'all'
+    path_regexes_values = '^/'
+    prefix = 'eom_metrics'
+    app_name = 'eom_deployed_app'
+    log_config_file = /etc/eom/logging.conf
+    log_config_disable_existing = False
 
 ====
 RBAC
@@ -247,6 +311,8 @@ Configuration
 
 	[eom:rbac]
 	acls_file=rbac.json
+    log_config_file = /etc/eom/logging.conf
+    log_config_disable_existing = False
 
 
 The acls_file parameter specifies a JSON formatted file on the local system that provides the filter rules as follows:

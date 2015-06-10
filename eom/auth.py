@@ -31,6 +31,7 @@ import six
 from eom.utils import log as logging
 
 CONF = cfg.CONF
+LOG = logging.getLogger(__name__)
 
 MAX_CACHE_LIFE_DEFAULT = ((datetime.datetime.max -
                            datetime.datetime.utcnow()).total_seconds() - 30)
@@ -47,8 +48,6 @@ AUTH_OPTIONS = [
                default=MAX_CACHE_LIFE_DEFAULT)
 ]
 
-CONF.register_opts(AUTH_OPTIONS, group=AUTH_GROUP_NAME)
-
 REDIS_GROUP_NAME = 'eom:auth_redis'
 REDIS_OPTIONS = [
     cfg.StrOpt('host'),
@@ -62,12 +61,6 @@ REDIS_OPTIONS = [
     cfg.StrOpt('ssl_ca_certs', default=None),
 ]
 
-CONF.register_opts(REDIS_OPTIONS, group=REDIS_GROUP_NAME)
-
-logging.register(CONF, AUTH_GROUP_NAME)
-logging.setup(CONF, AUTH_GROUP_NAME) 
-LOG = logging.getLogger(__name__)
-
 
 class InvalidKeystoneClient(Exception):
     pass
@@ -79,6 +72,19 @@ class InvalidAccessInformation(Exception):
 
 class UnknownAuthenticationDataVersion(Exception):
     pass
+
+
+def configure(config):
+    global CONF
+    global LOG
+
+    CONF = config
+    CONF.register_opts(AUTH_OPTIONS, group=AUTH_GROUP_NAME)
+    CONF.register_opts(REDIS_OPTIONS, group=REDIS_GROUP_NAME)
+
+    logging.register(CONF, AUTH_GROUP_NAME)
+    logging.setup(CONF, AUTH_GROUP_NAME)
+    LOG = logging.getLogger(__name__)
 
 
 def get_auth_redis_client():
@@ -536,7 +542,6 @@ def wrap(app, redis_client):
     auth_url = group['auth_url']
     blacklist_ttl = group['blacklist_ttl']
     max_cache_life = group['max_cache_life']
-    
 
     LOG.debug('Auth URL: {0:}'.format(auth_url))
 

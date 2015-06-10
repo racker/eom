@@ -8,6 +8,7 @@ import statsd
 from eom.utils import log as logging
 
 CONF = cfg.CONF
+LOG = logging.getLogger(__name__)
 
 OPT_GROUP_NAME = 'eom:metrics'
 OPTIONS = [
@@ -39,11 +40,17 @@ OPTIONS = [
                required=True)
 ]
 
-CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
 
-logging.register(CONF, OPT_GROUP_NAME)
-logging.setup(CONF, OPT_GROUP_NAME)
-LOG = logging.getLogger(__name__)
+def configure(config):
+    global CONF
+    global LOG
+
+    CONF = config
+    CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
+
+    logging.register(CONF, OPT_GROUP_NAME)
+    logging.setup(CONF, OPT_GROUP_NAME)
+    LOG = logging.getLogger(__name__)
 
 
 def wrap(app):

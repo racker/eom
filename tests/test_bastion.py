@@ -19,6 +19,8 @@ import ddt
 from eom import bastion
 from tests import util
 
+bastion.configure(util.CONF)
+
 
 @ddt.ddt
 class TestBastion(util.TestCase):

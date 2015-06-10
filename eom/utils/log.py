@@ -1,5 +1,5 @@
-from logging import *
 import logging.config
+from logging import getLogger
 
 from oslo.config import cfg
 
@@ -8,8 +8,10 @@ LOG_APP_OPTIONS = [
     cfg.BoolOpt('log_config_disable_existing', default=True)
 ]
 
+
 def register(config, app_section):
     config.register_opts(LOG_APP_OPTIONS, group=app_section)
+
 
 def setup(config, app_section):
     log_config_file = config[app_section]['log_config_file']

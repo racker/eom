@@ -1,40 +1,48 @@
-[logging]
-    log_directory = /etc/eom/log
-
 [loggers]
-    [[root]]
-        level = DEBUG
-        handlers = rotatelogfile,
-    [[eom]]
-        level = DEBUG
-        handlers = rotatelogfile,
-     [[py.warnings]]
-        handlers = rotatelogfile,
-
-[handlers]
-    [[console]]
-        level = DEBUG
-        class = logging.StreamHandler
-        formatter = standard
-    [[logfile]]
-        level = DEBUG
-        class = logging.FileHandler
-        formatter = standard
-        filename = /var/log/eom/eom.log
-    [[syslog]]
-        level = DEBUG
-        class = logging.handlers.SysLogHandler
-        formatter = standard
-        address = /dev/log
-    [[rotatelogfile]]
-        level = DEBUG
-        class = logging.handlers.RotatingFileHandler
-        formatter = standard
-        maxBytes = 400000000
-        backupCount = 2
-        filename = /var/log/eom/eom.log
+keys=root,eom
 
 [formatters]
-    [[standard]]
-        format = '%(asctime)s %(levelname)-5.5s [%(name)s/%(lineno)d][%(threadName)s] : %(message)s'
+keys = standard
+
+[handlers]
+keys=rotatelogfile
+
+[logger_root]
+level = DEBUG
+handlers = rotatelogfile
+
+[logger_eom]
+level = DEBUG
+handlers = rotatelogfile
+qualname=eom_logger
+
+[logger_py.warnings]
+handlers = rotatelogfile
+
+
+[handler_console]
+level = DEBUG
+class = logging.StreamHandler
+formatter = standard
+
+[handler_logfile]
+level = DEBUG
+class = logging.FileHandler
+formatter = standard
+filename = /home/bmeyer/.eom/log/eom.log
+
+[handler_syslog]
+level = DEBUG
+class = logging.handlers.SysLogHandler
+formatter = standard
+address = /dev/log
+
+[handler_rotatelogfile]
+level = DEBUG
+class = logging.handlers.RotatingFileHandler
+formatter = standard
+args=('/home/bmeyer/.eom/log/eom.log', 400000000, 2)
+
+[formatter_standard]
+format = '%(asctime)s %(levelname)-5.5s [%(name)s_%(lineno)d][%(threadName)s] : %(message)s'
 
