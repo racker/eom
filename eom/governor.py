@@ -18,7 +18,7 @@ from __future__ import division
 import re
 import time
 
-from oslo.config import cfg
+from oslo_config import cfg
 import redis
 import simplejson as json
 import six

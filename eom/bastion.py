@@ -49,7 +49,7 @@ Routes may also be separated by newlines, e.g.:
 
 """
 
-from oslo.config import cfg
+from oslo_config import cfg
 
 from eom.utils import log as logging
 

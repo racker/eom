@@ -16,7 +16,7 @@
 
 import re
 
-from oslo.config import cfg
+from oslo_config import cfg
 import simplejson as json
 
 from eom.utils import log as logging

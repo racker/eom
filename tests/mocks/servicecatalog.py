@@ -1,6 +1,6 @@
 import datetime
 
-from keystoneclient.openstack.common import timeutils
+from oslo_utils import timeutils
 
 
 class ServiceCatalogGenerator(object):
