@@ -1,4 +1,4 @@
-from oslo.config import cfg
+from oslo_config import cfg
 
 from eom import auth
 from tests.util import app as example_app

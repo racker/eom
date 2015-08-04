@@ -2,7 +2,7 @@ import re
 import socket
 import time
 
-from oslo.config import cfg
+from oslo_config import cfg
 import statsd
 
 from eom.utils import log as logging

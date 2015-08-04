@@ -49,7 +49,7 @@ accordingly [0]. Otherwise, your app will keep calm and carry on.
 import json
 import logging
 
-from oslo.config import cfg
+from oslo_config import cfg
 import uwsgi  # Injected by host server, assuming it's uWSGI!
 
 LOG = logging.getLogger(__name__)

@@ -1,7 +1,7 @@
 import logging.config
 from logging import getLogger
 
-from oslo.config import cfg
+from oslo_config import cfg
 
 LOG_APP_OPTIONS = [
     cfg.StrOpt('log_config_file', default=None),

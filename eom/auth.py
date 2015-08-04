@@ -22,7 +22,7 @@ from keystoneclient import access
 from keystoneclient import exceptions
 from keystoneclient.v2_0 import client as keystonev2_client
 import msgpack
-from oslo.config import cfg
+from oslo_config import cfg
 import redis
 from redis import connection
 import simplejson as json
