@@ -40,14 +40,16 @@ The following is an example of the EOM Auth module being loaded in this manner:
 .. code-block:: python
 
     import eom.auth
-    from oslo.config import cfg
+    from oslo_config import cfg
     import myapp
 
     CONF = cfg.CONF
     CONF(project='mywsgiapp', args=[])
     eom.auth.configure(CONF)
 
-    app = eom.auth.wraps(myapp.app)
+    auth_redis_client = auth.get_auth_redis_client()
+
+    app = eom.auth.wrap(myapp.app, auth_redis_client)
 
 Failure to call the configuration function on the modules will still allow the functionality to run; however,
 they may not have the expected settings.
@@ -118,11 +120,11 @@ EOM Auth needs only a couple values in the auth section of the eom.conf file to 
 
 .. code-block:: ini
 
-	[auth]
+	[eom:auth]
 	auth_url = 'https://openstack.keystone.url/v2.0'
-	blacklist_ttl = 3600000 
-    log_config_file = /etc/eom/logging.conf
-    log_config_disable_existing = False
+	blacklist_ttl = 3600000
+	log_config_file = /etc/eom/logging.conf
+	log_config_disable_existing = False
 
 The auth_url specifies the full Keystone API including version. All calls made are in the context of the user
 being authenticated. To minimize calls, successful authentication information is cached.
@@ -188,9 +190,9 @@ Configuration
 .. code-block:: ini
 
 	[eom:bastion]
-	restricted_routes = /v1/pin, /v1/health
-    log_config_file = /etc/eom/logging.conf
-    log_config_disable_existing = False
+	unrestricted_routes = /v1/pin, /v1/health
+	log_config_file = /etc/eom/logging.conf
+	log_config_disable_existing = False
 
 ========
 Governor
@@ -268,8 +270,8 @@ Configuration
 	rates_file = /home/bmeyer/.eom/governor.json
 	project_rates_file = /home/bmeyer/.eom/governor_project.json
 	throttle_milliseconds = 5
-    log_config_file = /etc/eom/logging.conf
-    log_config_disable_existing = False
+	log_config_file = /etc/eom/logging.conf
+	log_config_disable_existing = False
 
 	[eom:redis]
 	host = 192.168.3.11
@@ -311,8 +313,8 @@ Configuration
 
 	[eom:rbac]
 	acls_file=rbac.json
-    log_config_file = /etc/eom/logging.conf
-    log_config_disable_existing = False
+	log_config_file = /etc/eom/logging.conf
+	log_config_disable_existing = False
 
 
 The acls_file parameter specifies a JSON formatted file on the local system that provides the filter rules as follows:
@@ -373,6 +375,3 @@ Version
 =======
 
 TDB
-
-
-

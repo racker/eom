@@ -32,7 +32,7 @@ host = 127.0.0.1
 port = 6379
 
 [eom:bastion]
-restricted_routes = /v1/stats, /v1/health
+unrestricted_routes = /v1/stats, /v1/health
 log_config_file = ../etc/logging.conf-sample
 log_config_disable_existing = False
 

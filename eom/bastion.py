@@ -32,18 +32,18 @@ Wrapping with the bastion looks like:
 
 The control flow is as follows:
 
-1. If the route being accessed is present in the restricted list, use
+1. If the route being accessed is present in the unrestricted list, use
    the backdoor. However, if X-Forwarded-For is present, return 404.
 2. Otherwise, proceed through the gate.
 
 The configuration is given as a comma-separated list of paths, e.g.:
 
     [eom:bastion]
-    restricted_routes = /v1/health, /v1/stats
+    unrestricted_routes = /v1/health, /v1/stats
 
 Routes may also be separated by newlines, e.g.:
 
-    restricted_routes =
+    unrestricted_routes =
         /v1/health
         /v1/stats
 
@@ -58,8 +58,8 @@ LOG = logging.getLogger(__name__)
 
 OPT_GROUP_NAME = 'eom:bastion'
 OPTIONS = [
-    cfg.ListOpt('restricted_routes',
-                help='List of paths to gate.',
+    cfg.ListOpt('unrestricted_routes',
+                help='List of paths to allow through the gate.',
                 default=[])
 ]
 
@@ -92,13 +92,13 @@ def wrap(app_backdoor, app_gated):
     :returns: a new WSGI app that wraps the original with bastion powers
     :rtype: wsgi_app
     """
-    restricted_routes = CONF[OPT_GROUP_NAME].restricted_routes
+    unrestricted_routes = CONF[OPT_GROUP_NAME].unrestricted_routes
 
     # WSGI callable
     def middleware(env, start_response):
         path = env['PATH_INFO']
         contains_x_forward = 'HTTP_X_FORWARDED_FOR' in env
-        for route in restricted_routes:
+        for route in unrestricted_routes:
             if route == path:
                 if not contains_x_forward:
                     return app_backdoor(env, start_response)
