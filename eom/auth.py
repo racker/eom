@@ -38,14 +38,23 @@ MAX_CACHE_LIFE_DEFAULT = ((datetime.datetime.max -
 
 AUTH_GROUP_NAME = 'eom:auth'
 AUTH_OPTIONS = [
-    cfg.StrOpt('auth_url'),
-    cfg.IntOpt('blacklist_ttl'),
-    cfg.IntOpt('max_cache_life',
-               # default value is the maximum number of seconds
-               # that the datetime module can manage, with a buffer
-               # of 30 seconds so we won't brush up against the end
-               # or overflow when adding to utcnow() later on
-               default=MAX_CACHE_LIFE_DEFAULT)
+    cfg.StrOpt(
+        'auth_url',
+        help='Identity url to authenticate tokens.'
+    ),
+    cfg.IntOpt(
+        'blacklist_ttl',
+        help='Time to live in seconds for tokens marked as unauthorized.'
+    ),
+    cfg.IntOpt(
+        'max_cache_life',
+        help='Time to live in seconds for valid tokens.',
+        # default value is the maximum number of seconds
+        # that the datetime module can manage, with a buffer
+        # of 30 seconds so we won't brush up against the end
+        # or overflow when adding to utcnow() later on
+        default=MAX_CACHE_LIFE_DEFAULT
+    )
 ]
 
 REDIS_GROUP_NAME = 'eom:auth_redis'
