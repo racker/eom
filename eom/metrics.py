@@ -22,7 +22,7 @@ import statsd
 
 from eom.utils import log as logging
 
-CONF = cfg.CONF
+_CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 OPT_GROUP_NAME = 'eom:metrics'
@@ -57,24 +57,29 @@ OPTIONS = [
 
 
 def configure(config):
-    global CONF
+    global _CONF
     global LOG
 
-    CONF = config
-    CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
+    _CONF = config
+    _CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
 
-    logging.register(CONF, OPT_GROUP_NAME)
-    logging.setup(CONF, OPT_GROUP_NAME)
+    logging.register(_CONF, OPT_GROUP_NAME)
+    logging.setup(_CONF, OPT_GROUP_NAME)
     LOG = logging.getLogger(__name__)
 
 
+def get_conf():
+    global _CONF
+    return _CONF[OPT_GROUP_NAME]
+
+
 def wrap(app):
-    addr = CONF[OPT_GROUP_NAME].address
-    port = CONF[OPT_GROUP_NAME].port
-    keys = CONF[OPT_GROUP_NAME].path_regexes_keys
-    values = CONF[OPT_GROUP_NAME].path_regexes_values
-    prefix = CONF[OPT_GROUP_NAME].prefix
-    app_name = CONF[OPT_GROUP_NAME].app_name
+    addr = _CONF[OPT_GROUP_NAME].address
+    port = _CONF[OPT_GROUP_NAME].port
+    keys = _CONF[OPT_GROUP_NAME].path_regexes_keys
+    values = _CONF[OPT_GROUP_NAME].path_regexes_values
+    prefix = _CONF[OPT_GROUP_NAME].prefix
+    app_name = _CONF[OPT_GROUP_NAME].app_name
 
     regex_strings = zip(keys, values)
     regex = []

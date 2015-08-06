@@ -20,7 +20,7 @@ import simplejson as json
 
 from eom.utils import log as logging
 
-CONF = cfg.CONF
+_CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 OPT_GROUP_NAME = 'eom:rbac'
@@ -30,19 +30,24 @@ EMPTY_SET = set()
 
 
 def configure(config):
-    global CONF
+    global _CONF
     global LOG
 
-    CONF = config
-    CONF.register_opt(cfg.StrOpt(OPTION_NAME), group=OPT_GROUP_NAME)
+    _CONF = config
+    _CONF.register_opt(cfg.StrOpt(OPTION_NAME), group=OPT_GROUP_NAME)
 
-    logging.register(CONF, OPT_GROUP_NAME)
-    logging.setup(CONF, OPT_GROUP_NAME)
+    logging.register(_CONF, OPT_GROUP_NAME)
+    logging.setup(_CONF, OPT_GROUP_NAME)
     LOG = logging.getLogger(__name__)
 
 
+def get_conf():
+    global _CONF
+    return _CONF[OPT_GROUP_NAME]
+
+
 def _load_rules(path):
-    full_path = CONF.find_file(path)
+    full_path = _CONF.find_file(path)
     if not full_path:
         raise cfg.ConfigFilesNotFoundError([path])
 
@@ -100,7 +105,7 @@ def wrap(app):
     :param app: WSGI app to wrap
     :returns: a new WSGI app that wraps the original
     """
-    group = CONF[OPT_GROUP_NAME]
+    group = _CONF[OPT_GROUP_NAME]
     rules_path = group[OPTION_NAME]
     rules = _load_rules(rules_path)
     acl_map = _create_acl_map(rules)

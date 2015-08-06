@@ -132,6 +132,17 @@ class TestAuth(util.TestCase):
         # config = auth.CONF['eom:auth']
         # config['auth_url'] = self.runtime_url
 
+    def test_get_conf_auth(self):
+        config = auth.get_conf()
+        self.assertIsNotNone(config)
+
+    def test_get_conf_auth_redis(self):
+        auth_config = auth.get_conf()
+        redis_config = auth.get_conf(True)
+        self.assertIsNotNone(auth_config)
+        self.assertIsNotNone(redis_config)
+        self.assertNotEqual(auth_config, redis_config)
+
     def test_cache_key(self):
         value_input = ('1', '2', '3', '4')
         value_output = "(1,2,3,4)"

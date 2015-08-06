@@ -127,7 +127,7 @@ class TestGovernor(util.TestCase):
         governor.configure(util.CONF)
         self.governor = governor.wrap(util.app, self.redis_client)
 
-        config = governor.CONF['eom:governor']
+        config = governor.get_conf()
         rates = governor._load_rates(config['rates_file'])
 
         self.test_rate = rates[0]
@@ -141,6 +141,10 @@ class TestGovernor(util.TestCase):
         super(TestGovernor, self).tearDown()
         redis_client = fakeredis_connection()
         redis_client.flushall()
+
+    def test_get_conf(self):
+        config = governor.get_conf()
+        self.assertIsNotNone(config)
 
     def test_missing_project_id(self):
         env = self.create_env('/v1')

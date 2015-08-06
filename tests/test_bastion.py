@@ -44,6 +44,10 @@ class TestBastion(util.TestCase):
         self.bastion(env, self.start_response)
         self.assertEqual(self.status, lookup[code])
 
+    def test_get_conf(self):
+        config = bastion.get_conf()
+        self.assertIsNotNone(config)
+
     def test_restricted_route_hits_gate(self):
         env = self.create_env(self.normal_route)
         self._expect(env, 403)

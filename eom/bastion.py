@@ -52,7 +52,7 @@ from oslo_config import cfg
 
 from eom.utils import log as logging
 
-CONF = cfg.CONF
+_CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 OPT_GROUP_NAME = 'eom:bastion'
@@ -64,15 +64,20 @@ OPTIONS = [
 
 
 def configure(config):
-    global CONF
+    global _CONF
     global LOG
 
-    CONF = config
-    CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
+    _CONF = config
+    _CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
 
-    logging.register(CONF, OPT_GROUP_NAME)
-    logging.setup(CONF, OPT_GROUP_NAME)
+    logging.register(_CONF, OPT_GROUP_NAME)
+    logging.setup(_CONF, OPT_GROUP_NAME)
     LOG = logging.getLogger(__name__)
+
+
+def get_conf():
+    global _CONF
+    return _CONF[OPT_GROUP_NAME]
 
 
 def _http_gate_failure(start_response):
@@ -91,7 +96,7 @@ def wrap(app_backdoor, app_gated):
     :returns: a new WSGI app that wraps the original with bastion powers
     :rtype: wsgi_app
     """
-    unrestricted_routes = CONF[OPT_GROUP_NAME].unrestricted_routes
+    unrestricted_routes = _CONF[OPT_GROUP_NAME].unrestricted_routes
 
     # WSGI callable
     def middleware(env, start_response):
