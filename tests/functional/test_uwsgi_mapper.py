@@ -41,7 +41,7 @@ options_file = {0}
 """
 
 APP_CONTENTS = """
-from oslo.config import cfg
+from oslo_config import cfg
 
 from eom.uwsgi import logvar_mapper
 
