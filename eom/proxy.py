@@ -1,4 +1,4 @@
-# Copyright (c) 2014 Rackspace, Inc.
+# Copyright (c) 2013 Rackspace, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -10,9 +10,9 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
-#
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import logging
 import re
 import uuid
@@ -22,7 +22,7 @@ import requests
 
 
 LOG = logging.getLogger(__name__)
-CONF = cfg.CONF
+_CONF = cfg.CONF
 
 PROXY_GROUP_NAME = 'eom:proxy'
 PROXY_OPTIONS = [
@@ -30,7 +30,7 @@ PROXY_OPTIONS = [
     cfg.IntOpt('timeout')
 ]
 
-CONF.register_opts(PROXY_OPTIONS, group=PROXY_GROUP_NAME)
+_CONF.register_opts(PROXY_OPTIONS, group=PROXY_GROUP_NAME)
 
 
 class ReverseProxyRequest(object):
@@ -99,7 +99,7 @@ class ReverseProxy(object):
     STREAM_BLOCK_SIZE = 8 * 1024  # 8 Kilobytes
 
     def __init__(self):
-        config_group = CONF[PROXY_GROUP_NAME]
+        config_group = _CONF[PROXY_GROUP_NAME]
 
         self.config = {
             'upstream': config_group['upstream'],

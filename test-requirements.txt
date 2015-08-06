@@ -7,7 +7,7 @@ testtools
 mock
 
 # HTTP interface testing
-stackinabox
+stackinabox>=0.3
 requests-mock
 
 # Test runner
@@ -24,7 +24,6 @@ fakeredis>=0.5.1
 fixtures
 httpretty
 requests
-stackinabox>=0.3
 
 # uwsgi-module testing
 uwsgi
