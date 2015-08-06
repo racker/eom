@@ -95,9 +95,12 @@ def configure(config):
     LOG = logging.getLogger(__name__)
 
 
-def get_conf():
+def get_conf(redis_config=False):
     global _CONF
-    return _CONF[AUTH_GROUP_NAME]
+    if redis_config:
+        return _CONF[REDIS_GROUP_NAME]
+    else:
+        return _CONF[AUTH_GROUP_NAME]
 
 
 def get_auth_redis_client():

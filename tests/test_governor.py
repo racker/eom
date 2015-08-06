@@ -142,6 +142,10 @@ class TestGovernor(util.TestCase):
         redis_client = fakeredis_connection()
         redis_client.flushall()
 
+    def test_get_conf(self):
+        config = governor.get_conf()
+        self.assertIsNotNone(config)
+
     def test_missing_project_id(self):
         env = self.create_env('/v1')
         self.governor(env, self.start_response)

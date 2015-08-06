@@ -43,7 +43,7 @@ def configure(config):
 
 def get_conf():
     global _CONF
-    return _CONF[AUTH_GROUP_NAME]
+    return _CONF[OPT_GROUP_NAME]
 
 
 def _load_rules(path):

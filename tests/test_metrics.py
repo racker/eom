@@ -38,6 +38,10 @@ class TestMetrics(util.TestCase):
         super(TestMetrics, self).tearDown()
         StackInABox.reset_services()
 
+    def test_get_conf(self):
+        config = metrics.get_conf()
+        self.assertIsNotNone(config)
+
     def test_basic(self):
         with stackinabox.util_requests_mock.activate():
             stackinabox.util_requests_mock.requests_mock_registration(

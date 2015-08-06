@@ -27,6 +27,10 @@ class TestRBAC(util.TestCase):
 
         self.rbac = eom.rbac.wrap(util.app)
 
+    def test_get_conf(self):
+        config = eom.rbac.get_conf()
+        self.assertIsNotNone(config)
+
     def test_noacl(self):
         env = self.create_env('/v1')
         self.rbac(env, self.start_response)

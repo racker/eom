@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import logging.config
-from logging import getLogger
+from logging import getLogger as logging_getLogger
 
 from oslo_config import cfg
 
@@ -35,3 +35,7 @@ def setup(config, app_section):
     if log_config_file is not None:
         logging.config.fileConfig(log_config_file,
                                   disable_existing_loggers=disable_existing)
+
+
+def getLogger(*args, **kwargs):
+    return logging_getLogger(*args, **kwargs)
