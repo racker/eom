@@ -126,7 +126,7 @@ class TestGovernor(util.TestCase):
         governor.configure(util.CONF)
         self.governor = governor.wrap(util.app, redis_client)
 
-        config = governor.CONF['eom:governor']
+        config = governor.get_conf()
         rates = governor._load_rates(config['rates_file'])
 
         self.test_rate = rates[0]

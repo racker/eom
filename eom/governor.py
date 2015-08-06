@@ -26,7 +26,7 @@ import six
 from eom.utils import log as logging
 
 
-CONF = cfg.CONF
+_CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 GOV_GROUP_NAME = 'eom:governor'
@@ -53,16 +53,21 @@ REDIS_OPTIONS = [
 
 
 def configure(config):
-    global CONF
+    global _CONF
     global LOG
 
-    CONF = config
-    CONF.register_opts(GOV_OPTIONS, group=GOV_GROUP_NAME)
-    CONF.register_opts(REDIS_OPTIONS, group=REDIS_GROUP_NAME)
+    _CONF = config
+    _CONF.register_opts(GOV_OPTIONS, group=GOV_GROUP_NAME)
+    _CONF.register_opts(REDIS_OPTIONS, group=REDIS_GROUP_NAME)
 
-    logging.register(CONF, GOV_GROUP_NAME)
-    logging.setup(CONF, GOV_GROUP_NAME)
+    logging.register(_CONF, GOV_GROUP_NAME)
+    logging.setup(_CONF, GOV_GROUP_NAME)
     LOG = logging.getLogger(__name__)
+
+
+def get_conf():
+    global _CONF
+    return _CONF[GOV_GROUP_NAME]
 
 
 def applies_to(rate, method, route):
@@ -118,7 +123,7 @@ class HardLimitError(Exception):
 
 
 def _load_json_file(path):
-    full_path = CONF.find_file(path)
+    full_path = _CONF.find_file(path)
     if not full_path:
         raise cfg.ConfigFilesNotFoundError([path or '<Empty>'])
 
@@ -227,7 +232,7 @@ def wrap(app, redis_client):
     :param redis_client: pooled redis client
     :returns: a new WSGI app that wraps the original
     """
-    group = CONF[GOV_GROUP_NAME]
+    group = _CONF[GOV_GROUP_NAME]
 
     rates_path = group['rates_file']
     project_rates_path = group['project_rates_file']
