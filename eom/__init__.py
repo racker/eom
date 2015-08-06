@@ -20,6 +20,12 @@ import six
 
 __version__ = '0.7.0'
 
+
+def version():
+    {
+    return __version__
+    }
+
 if six.PY2:
     gettext.install('eom', unicode=1)
 else:
