@@ -10,49 +10,70 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
-#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
 from __future__ import division
-import logging
 import re
 import time
 
-from oslo.config import cfg
+from oslo_config import cfg
 import redis
 import simplejson as json
 import six
 
+from eom.utils import log as logging
 
-CONF = cfg.CONF
+
+_CONF = cfg.CONF
+LOG = logging.getLogger(__name__)
 
 GOV_GROUP_NAME = 'eom:governor'
-OPTIONS = [
-    cfg.StrOpt('rates_file'),
-    cfg.StrOpt('project_rates_file'),
-    cfg.IntOpt('throttle_milliseconds')
+GOV_OPTIONS = [
+    cfg.StrOpt(
+        'rates_file',
+        help='JSON file containing route, methods, limits and drain_velocity.'
+    ),
+    cfg.StrOpt(
+        'project_rates_file',
+        help='JSON file with details on project id specific rate limiting.'
+    ),
+    cfg.IntOpt(
+        'throttle_milliseconds',
+        help='Number of milliseconds to sleep when bucket is full.'
+    )
 ]
 
-CONF.register_opts(OPTIONS, group=GOV_GROUP_NAME)
-
 REDIS_GROUP_NAME = 'eom:redis'
-OPTIONS = [
+REDIS_OPTIONS = [
     cfg.StrOpt('host'),
     cfg.StrOpt('port'),
 ]
 
-CONF.register_opts(OPTIONS, group=REDIS_GROUP_NAME)
+
+def configure(config):
+    global _CONF
+    global LOG
+
+    _CONF = config
+    _CONF.register_opts(GOV_OPTIONS, group=GOV_GROUP_NAME)
+    _CONF.register_opts(REDIS_OPTIONS, group=REDIS_GROUP_NAME)
+
+    logging.register(_CONF, GOV_GROUP_NAME)
+    logging.setup(_CONF, GOV_GROUP_NAME)
+    LOG = logging.getLogger(__name__)
 
 
-LOG = logging.getLogger(__name__)
+def get_conf():
+    global _CONF
+    return _CONF[GOV_GROUP_NAME]
 
 
 def applies_to(rate, method, route):
     """Determines whether this rate applies to a given request.
 
     :param str method: HTTP method, such as GET or POST
-    :param str path: URL path, such as "/v1/queues"
+    :param str route: URL path, such as "/v1/queues"
     """
     if rate.methods is not None and method not in rate.methods:
         return False
@@ -101,7 +122,7 @@ class HardLimitError(Exception):
 
 
 def _load_json_file(path):
-    full_path = CONF.find_file(path)
+    full_path = _CONF.find_file(path)
     if not full_path:
         raise cfg.ConfigFilesNotFoundError([path or '<Empty>'])
 
@@ -136,6 +157,7 @@ def _create_limiter(redis_client):
         now = time.time()
         last_time = now
         count = 1.0
+        new_count = 1.0
 
         try:
             lookup = redis_client.hmget(project_id, 'c', 't')
@@ -166,7 +188,7 @@ def _create_limiter(redis_client):
             message = _('Redis Error:{exception} for Project-ID:{project_id}')
             LOG.warn((message.format(exception=ex, project_id=project_id)))
 
-        if count > rate.limit:
+        if new_count > rate.limit:
             raise HardLimitError()
 
     return calc_sleep
@@ -210,7 +232,7 @@ def wrap(app, redis_client):
     :param redis_client: pooled redis client
     :returns: a new WSGI app that wraps the original
     """
-    group = CONF[GOV_GROUP_NAME]
+    group = _CONF[GOV_GROUP_NAME]
 
     rates_path = group['rates_file']
     project_rates_path = group['project_rates_file']

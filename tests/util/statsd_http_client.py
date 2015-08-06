@@ -13,21 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from tests import util
+import requests
+import statsd.client
 
 
-class TestUwsgiImport(util.TestCase):
+class HttpStatsdClient(statsd.client.StatsClientBase):
 
-    def test_import_uwsgi_raises_import_error(self):
-        try:
-            from eom import uwsgi  # noqa
-            self.fail("Did not raise ImportError")
-        except ImportError:
-            pass
+    def __init__(self, url, prefix=None):
+        self._url = url
+        self._prefix = prefix
 
-    def test_import_uwsgi_specific_module_raises_import_error(self):
-        try:
-            from eom.uwsgi import logvar_mapper  # noqa
-            self.fail("Did not raise ImportError")
-        except ImportError:
-            pass
+    def _send(self, data):
+        res = requests.post(self._url, data=data)
+        if res.status_code != 201:
+            print('Call Failed')
+
+    def pipeline(self):
+        return statsd.client.TCPPipeline(self)

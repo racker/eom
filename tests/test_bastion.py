@@ -8,9 +8,8 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR ONDITIONS OF ANY KIND, either express or
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
-#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
@@ -18,6 +17,8 @@ import ddt
 
 from eom import bastion
 from tests import util
+
+bastion.configure(util.CONF)
 
 
 @ddt.ddt
@@ -29,7 +30,7 @@ class TestBastion(util.TestCase):
         app = util.app
         wrapped_app = util.wrap_403(app)
         self.bastion = bastion.wrap(app, wrapped_app)
-        self.restricted_route = '/v1/health'
+        self.unrestricted_route = '/v1/health'
         self.normal_route = '/v1'
 
     def _expect(self, env, code):
@@ -43,17 +44,21 @@ class TestBastion(util.TestCase):
         self.bastion(env, self.start_response)
         self.assertEqual(self.status, lookup[code])
 
-    def test_unrestricted_route_hits_gate(self):
+    def test_get_conf(self):
+        config = bastion.get_conf()
+        self.assertIsNotNone(config)
+
+    def test_restricted_route_hits_gate(self):
         env = self.create_env(self.normal_route)
         self._expect(env, 403)
 
-    def test_route_restricted_and_xforward_present_returns_404(self):
-        env = self.create_env(self.restricted_route)
+    def test_route_unrestricted_and_xforward_present_returns_404(self):
+        env = self.create_env(self.unrestricted_route)
         env['HTTP_X_FORWARDED_FOR'] = 'taco'
         self._expect(env, 404)
 
-    def test_route_restricted_and_not_forwarded_returns_204(self):
-        env = self.create_env(self.restricted_route)
+    def test_route_unrestricted_and_not_forwarded_returns_204(self):
+        env = self.create_env(self.unrestricted_route)
         self._expect(env, 204)
 
     @ddt.data('/v1/healthy', '/v1/heath', '/health', 'health')
@@ -63,8 +68,8 @@ class TestBastion(util.TestCase):
         self._expect(env, 403)
 
     @ddt.data('GET', 'HEAD', 'PUT', 'DELETE', 'POST', 'PATCH')
-    def test_restrict_works_regardless_of_method(self, method):
-        env = self.create_env(self.restricted_route)
+    def test_unrestricted_works_regardless_of_method(self, method):
+        env = self.create_env(self.unrestricted_route)
         self._expect(env, 204)
 
         env['HTTP_X_FORWARDED_FOR'] = 'taco'

@@ -8,9 +8,8 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR ONDITIONS OF ANY KIND, either express or
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
-#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
@@ -32,36 +31,53 @@ Wrapping with the bastion looks like:
 
 The control flow is as follows:
 
-1. If the route being accessed is present in the restricted list, use
+1. If the route being accessed is present in the unrestricted list, use
    the backdoor. However, if X-Forwarded-For is present, return 404.
 2. Otherwise, proceed through the gate.
 
 The configuration is given as a comma-separated list of paths, e.g.:
 
     [eom:bastion]
-    restricted_routes = /v1/health, /v1/stats
+    unrestricted_routes = /v1/health, /v1/stats
 
 Routes may also be separated by newlines, e.g.:
 
-    restricted_routes =
+    unrestricted_routes =
         /v1/health
         /v1/stats
 
 """
 
-import logging
+from oslo_config import cfg
 
-from oslo.config import cfg
+from eom.utils import log as logging
 
+_CONF = cfg.CONF
+LOG = logging.getLogger(__name__)
 
 OPT_GROUP_NAME = 'eom:bastion'
 OPTIONS = [
-    cfg.ListOpt('restricted_routes',
-                help='List of paths to gate.',
+    cfg.ListOpt('unrestricted_routes',
+                help='List of paths to allow through the gate.',
                 default=[])
 ]
 
-LOG = logging.getLogger(__name__)
+
+def configure(config):
+    global _CONF
+    global LOG
+
+    _CONF = config
+    _CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
+
+    logging.register(_CONF, OPT_GROUP_NAME)
+    logging.setup(_CONF, OPT_GROUP_NAME)
+    LOG = logging.getLogger(__name__)
+
+
+def get_conf():
+    global _CONF
+    return _CONF[OPT_GROUP_NAME]
 
 
 def _http_gate_failure(start_response):
@@ -80,16 +96,13 @@ def wrap(app_backdoor, app_gated):
     :returns: a new WSGI app that wraps the original with bastion powers
     :rtype: wsgi_app
     """
-    conf = cfg.CONF
-
-    conf.register_opts(OPTIONS, group=OPT_GROUP_NAME)
-    restricted_routes = conf[OPT_GROUP_NAME].restricted_routes
+    unrestricted_routes = _CONF[OPT_GROUP_NAME].unrestricted_routes
 
     # WSGI callable
     def middleware(env, start_response):
         path = env['PATH_INFO']
         contains_x_forward = 'HTTP_X_FORWARDED_FOR' in env
-        for route in restricted_routes:
+        for route in unrestricted_routes:
             if route == path:
                 if not contains_x_forward:
                     return app_backdoor(env, start_response)

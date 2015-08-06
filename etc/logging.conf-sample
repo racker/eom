@@ -1,0 +1,48 @@
+[loggers]
+keys=root,eom
+
+[formatters]
+keys = standard
+
+[handlers]
+keys=rotatelogfile
+
+[logger_root]
+level = DEBUG
+handlers = rotatelogfile
+
+[logger_eom]
+level = DEBUG
+handlers = rotatelogfile
+qualname=eom_logger
+
+[logger_py.warnings]
+handlers = rotatelogfile
+
+
+[handler_console]
+level = DEBUG
+class = logging.StreamHandler
+formatter = standard
+
+[handler_logfile]
+level = DEBUG
+class = logging.FileHandler
+formatter = standard
+filename = /var/log/eom/eom.log
+
+[handler_syslog]
+level = DEBUG
+class = logging.handlers.SysLogHandler
+formatter = standard
+address = /dev/log
+
+[handler_rotatelogfile]
+level = DEBUG
+class = logging.handlers.RotatingFileHandler
+formatter = standard
+args=('/var/log/eom/eom.log', 400000000, 2)
+
+[formatter_standard]
+format = '%(asctime)s %(levelname)-5.5s [%(name)s_%(lineno)d][%(threadName)s] : %(message)s'
+

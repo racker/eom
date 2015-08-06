@@ -8,16 +8,16 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR ONDITIONS OF ANY KIND, either express or
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
-#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
 import os
 
-from oslo.config import cfg
+from oslo_config import cfg
 import testtools
+
 
 CONF = cfg.CONF
 
@@ -90,7 +90,7 @@ class TestCase(testtools.TestCase):
 
         module_dir = os.path.abspath(os.path.dirname(__file__))
         parent = os.path.dirname(module_dir)
-        return os.path.join(parent, 'etc', filename)
+        return os.path.join(parent, '../etc', filename)
 
     def create_env(self, path, roles=None, project_id=None, auth_token=None,
                    method='GET'):

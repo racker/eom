@@ -8,31 +8,46 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR ONDITIONS OF ANY KIND, either express or
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
-#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import re
 
-from oslo.config import cfg
+from oslo_config import cfg
 import simplejson as json
 
+from eom.utils import log as logging
+
+_CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
-CONF = cfg.CONF
 
 OPT_GROUP_NAME = 'eom:rbac'
 OPTION_NAME = 'acls_file'
 
-CONF.register_opt(cfg.StrOpt(OPTION_NAME), group=OPT_GROUP_NAME)
-
 EMPTY_SET = set()
 
 
+def configure(config):
+    global _CONF
+    global LOG
+
+    _CONF = config
+    _CONF.register_opt(cfg.StrOpt(OPTION_NAME), group=OPT_GROUP_NAME)
+
+    logging.register(_CONF, OPT_GROUP_NAME)
+    logging.setup(_CONF, OPT_GROUP_NAME)
+    LOG = logging.getLogger(__name__)
+
+
+def get_conf():
+    global _CONF
+    return _CONF[OPT_GROUP_NAME]
+
+
 def _load_rules(path):
-    full_path = CONF.find_file(path)
+    full_path = _CONF.find_file(path)
     if not full_path:
         raise cfg.ConfigFilesNotFoundError([path])
 
@@ -90,7 +105,7 @@ def wrap(app):
     :param app: WSGI app to wrap
     :returns: a new WSGI app that wraps the original
     """
-    group = CONF[OPT_GROUP_NAME]
+    group = _CONF[OPT_GROUP_NAME]
     rules_path = group[OPTION_NAME]
     rules = _load_rules(rules_path)
     acl_map = _create_acl_map(rules)
