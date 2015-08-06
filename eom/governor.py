@@ -10,7 +10,6 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
-#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
@@ -158,6 +157,7 @@ def _create_limiter(redis_client):
         now = time.time()
         last_time = now
         count = 1.0
+        new_count = 1.0
 
         try:
             lookup = redis_client.hmget(project_id, 'c', 't')
@@ -188,7 +188,7 @@ def _create_limiter(redis_client):
             message = _('Redis Error:{exception} for Project-ID:{project_id}')
             LOG.warn((message.format(exception=ex, project_id=project_id)))
 
-        if count > rate.limit:
+        if new_count > rate.limit:
             raise HardLimitError()
 
     return calc_sleep

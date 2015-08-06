@@ -10,7 +10,6 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied.
-#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
@@ -26,8 +25,10 @@ from wsgiref import simple_server
 
 import ddt
 import fakeredis
+import mock
 import requests
 import six
+import testtools
 
 from eom import governor
 from tests import util
@@ -122,9 +123,9 @@ class TestGovernor(util.TestCase):
 
     def setUp(self):
         super(TestGovernor, self).setUp()
-        redis_client = fakeredis_connection()
+        self.redis_client = fakeredis_connection()
         governor.configure(util.CONF)
-        self.governor = governor.wrap(util.app, redis_client)
+        self.governor = governor.wrap(util.app, self.redis_client)
 
         config = governor.get_conf()
         rates = governor._load_rates(config['rates_file'])
@@ -132,7 +133,7 @@ class TestGovernor(util.TestCase):
         self.test_rate = rates[0]
         self.limit = self.test_rate.limit
         self.test_url = '/v1/queues/fizbit/messages'
-        self.limiter = governor._create_limiter(redis_client)
+        self.limiter = governor._create_limiter(self.redis_client)
 
         self.default_rate = rates[1]
 
@@ -200,16 +201,28 @@ class TestGovernor(util.TestCase):
             governor.match_rate('12', 'PUT', None, prates, grates)
         )
 
-    def test_limiter_raises_if_over_limit(self):
+    @mock.patch('time.time')
+    def test_limiter_raises_if_over_limit(self, mock_time):
+        mock_time.return_value = 0.0
         call = lambda: self.limiter(1, self.test_rate)
         [call() for _ in range(self.limit)]
-        self.assertRaises(governor.HardLimitError, call)
 
-    def test_limit_reached_no_429(self):
+        self.assertEqual(
+            float(self.redis_client.hmget(1, 'c')[0]),
+            float(self.limit)
+        )
+        with testtools.ExpectedException(governor.HardLimitError):
+            call()
+
+    @mock.patch('time.time')
+    def test_limit_reached_no_429(self, mock_time):
+        mock_time.return_value = 0.0
         self._test_limit(self.default_rate.limit, 204)
 
-    def test_limit_surpassed_leads_to_429(self):
-        self._test_limit(self.default_rate.limit + 3, 429)
+    @mock.patch('time.time')
+    def test_limit_surpassed_leads_to_429(self, mock_time):
+        mock_time.return_value = 0.0
+        self._test_limit(self.default_rate.limit + 1, 429)
 
     def test_draining_evades_429(self):
         self._test_draining(self.default_rate.limit + 3, 204)
