@@ -31,9 +31,18 @@ LOG = logging.getLogger(__name__)
 
 GOV_GROUP_NAME = 'eom:governor'
 GOV_OPTIONS = [
-    cfg.StrOpt('rates_file'),
-    cfg.StrOpt('project_rates_file'),
-    cfg.IntOpt('throttle_milliseconds')
+    cfg.StrOpt(
+        'rates_file',
+        help='JSON file containing route, methods, limits and drain_velocity.'
+    ),
+    cfg.StrOpt(
+        'project_rates_file',
+        help='JSON file with details on project id specific rate limiting.'
+    ),
+    cfg.IntOpt(
+        'throttle_milliseconds',
+        help='Number of milliseconds to sleep when bucket is full.'
+    )
 ]
 
 REDIS_GROUP_NAME = 'eom:redis'
@@ -60,7 +69,7 @@ def applies_to(rate, method, route):
     """Determines whether this rate applies to a given request.
 
     :param str method: HTTP method, such as GET or POST
-    :param str path: URL path, such as "/v1/queues"
+    :param str route: URL path, such as "/v1/queues"
     """
     if rate.methods is not None and method not in rate.methods:
         return False
