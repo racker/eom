@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
-# EOM: Emerging Openstack Middleware documentation build configuration file, created by
-# sphinx-quickstart on Fri Aug  7 08:27:18 2015.
+# EOM: Emerging OpenStack WSGI Middleware documentation build configuration
+# file, created by sphinx-quickstart on Fri Aug  7 08:27:18 2015.
 #
 # This file is execfile()d with the current directory set to its
 # containing dir.
@@ -51,7 +51,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'EOM: Emerging Openstack Middleware'
+project = u'EOM: Emerging OpenStack WSGI Middleware'
 copyright = u'2015, Kurt Griffith, Sriram Madapusi Vasudevan, Benjamen R. Meyer'
 author = u'Kurt Griffith, Sriram Madapusi Vasudevan, Benjamen R. Meyer'
 
@@ -227,7 +227,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'EOMEmergingOpenstackMiddleware.tex', u'EOM: Emerging Openstack Middleware Documentation',
+  (master_doc, 'EOMEmergingOpenstackMiddleware.tex', u'EOM: Emerging OpenStack WSGI Middleware Documentation',
    u'Kurt Griffith, Sriram Madapusi Vasudevan, Benjamen R. Meyer', 'manual'),
 ]
 
@@ -257,7 +257,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'eomemergingopenstackmiddleware', u'EOM: Emerging Openstack Middleware Documentation',
+    (master_doc, 'eomemergingopenstackmiddleware', u'EOM: Emerging OpenStack WSGI Middleware Documentation',
      [author], 1)
 ]
 
@@ -271,7 +271,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'EOMEmergingOpenstackMiddleware', u'EOM: Emerging Openstack Middleware Documentation',
+  (master_doc, 'EOMEmergingOpenstackMiddleware', u'EOM: Emerging OpenStack WSGI Middleware Documentation',
    author, 'EOMEmergingOpenstackMiddleware', 'One line description of project.',
    'Miscellaneous'),
 ]

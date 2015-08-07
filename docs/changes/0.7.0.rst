@@ -1,0 +1,14 @@
+ChangeLog for EOM 0.7.0
+=======================
+
+New
+---
+- Documentation of modules!
+
+Breaking Changes
+----------------
+- EOM Bastion: renamed configuration parameter 'restricted_routes' to 'unrestricted_routes' for better clarity and to match the meaning of the parameter
+
+Fixed
+-----
+- EOM Governor: governor result was always one request behind so the rate limiter would not trigger until 2 over instead of 1 over
