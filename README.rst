@@ -3,6 +3,10 @@ EOM: Emerging OpenStack WSGI Middleware
 
 :version: 0.5.0
 
+.. image:: https://readthedocs.org/projects/eom/badge/
+	:target: https://readthedocs.org/projects/eom
+    :alt: ReadTheDocs Status
+
 Incubator project for general OpenStack API middleware.
 
 So far, includes verb-based ACL enforcement and simple/efficient rate limiting.

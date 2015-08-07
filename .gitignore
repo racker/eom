@@ -44,3 +44,5 @@ nosetests.xml
 ChangeLog
 AUTHORS
 
+# Read The Docs
+docs/_build
