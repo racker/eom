@@ -123,6 +123,7 @@ def get_auth_redis_client():
     else:
         pool = redis.ConnectionPool(host=group['host'],
                                     port=group['port'],
+                                    password=group['password'],
                                     db=group['redis_db'])
 
     return redis.Redis(connection_pool=pool)
