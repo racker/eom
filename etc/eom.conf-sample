@@ -8,7 +8,8 @@ log_config_disable_existing = False
 [eom:auth_redis]
 host = 127.0.0.1
 port = 6379
-ssl_enable = False
+# redis_db = 0
+# ssl_enable = False
 # password = sample
 # ssl_keyfile = sample
 # ssl_certfile = sample
