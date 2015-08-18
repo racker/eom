@@ -57,9 +57,19 @@ LOG = logging.getLogger(__name__)
 
 OPT_GROUP_NAME = 'eom:bastion'
 OPTIONS = [
-    cfg.ListOpt('unrestricted_routes',
-                help='List of paths to allow through the gate.',
-                default=[])
+    cfg.ListOpt(
+        'unrestricted_routes',
+        help='List of paths to allow through the gate.',
+        default=[]
+    ),
+    cfg.ListOpt(
+        'gate_headers',
+        help=(
+            "List of wsgi 'HTTP_' headers. If all of the headers are present, "
+            "deny access to gated app."
+        ),
+        default=[]
+    )
 ]
 
 
@@ -97,14 +107,15 @@ def wrap(app_backdoor, app_gated):
     :rtype: wsgi_app
     """
     unrestricted_routes = _CONF[OPT_GROUP_NAME].unrestricted_routes
+    gate_headers = _CONF[OPT_GROUP_NAME].gate_headers
 
     # WSGI callable
     def middleware(env, start_response):
         path = env['PATH_INFO']
-        contains_x_forward = 'HTTP_X_FORWARDED_FOR' in env
+        contains_gate_headers = set(gate_headers).issubset(set(env.keys()))
         for route in unrestricted_routes:
             if route == path:
-                if not contains_x_forward:
+                if not contains_gate_headers:
                     return app_backdoor(env, start_response)
                 else:
                     return _http_gate_failure(start_response)
