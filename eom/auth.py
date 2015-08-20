@@ -43,7 +43,7 @@ AUTH_OPTIONS = [
     ),
     cfg.IntOpt(
         'blacklist_ttl',
-        help='Time to live in seconds for tokens marked as unauthorized.'
+        help='Time to live in milliseconds for tokens marked as unauthorized.'
     ),
     cfg.IntOpt(
         'max_cache_life',
