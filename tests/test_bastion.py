@@ -52,12 +52,12 @@ class TestBastion(util.TestCase):
         env = self.create_env(self.normal_route)
         self._expect(env, 403)
 
-    def test_route_unrestricted_and_xforward_present_returns_404(self):
+    def test_route_unrestricted_and_gate_headers_present_returns_404(self):
         env = self.create_env(self.unrestricted_route)
         env['HTTP_X_FORWARDED_FOR'] = 'taco'
         self._expect(env, 404)
 
-    def test_route_unrestricted_and_not_forwarded_returns_204(self):
+    def test_route_unrestricted_and_no_gate_headers_returns_204(self):
         env = self.create_env(self.unrestricted_route)
         self._expect(env, 204)
 
@@ -69,8 +69,10 @@ class TestBastion(util.TestCase):
 
     @ddt.data('GET', 'HEAD', 'PUT', 'DELETE', 'POST', 'PATCH')
     def test_unrestricted_works_regardless_of_method(self, method):
-        env = self.create_env(self.unrestricted_route)
+        # all http methods
+        env = self.create_env(self.unrestricted_route, method=method)
         self._expect(env, 204)
 
+        # adding gated headers should yield 'not found'
         env['HTTP_X_FORWARDED_FOR'] = 'taco'
         self._expect(env, 404)

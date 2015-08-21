@@ -34,6 +34,7 @@ port = 6379
 
 [eom:bastion]
 unrestricted_routes = /v1/stats, /v1/health
+gate_headers = HTTP_X_FORWARDED_FOR
 log_config_file = ../etc/logging.conf-sample
 log_config_disable_existing = False
 
