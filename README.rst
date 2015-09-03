@@ -302,6 +302,30 @@ Configuration
     log_config_file = /etc/eom/logging.conf
     log_config_disable_existing = False
 
+=====
+Proxy
+=====
+
+EOM Proxy provides a Reverse Proxy WSGI App so that EOM can be used with
+non-Python-based REST API stacks (f.e C++, Java, PHP, .NET).
+
+EOM Proxy is easy to use and configure as shown in the following examples:
+
+.. code-block:: ini
+
+	[eom:proxy]
+	upstream = http://localhost:8080
+	timeout = 30000
+
+.. code-block:: python
+
+	from eom.proxy import ReverseProxy
+	from oslo.config import cfg
+
+	conf = cfg.CONF
+	conf(project='eom', args=[])
+	app = proxy.ReverseProxy()
+
 ====
 RBAC
 ====
