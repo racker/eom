@@ -117,13 +117,13 @@ def wrap(app):
             if route.match(path):
                 break
         else:
-            LOG.debug(_('Requested path not recognized. Skipping RBAC.'))
+            LOG.debug('Requested path not recognized. Skipping RBAC.')
             return app(env, start_response)
 
         try:
             roles = env['HTTP_X_ROLES']
         except KeyError:
-            LOG.error(_('Request headers did not include X-Roles'))
+            LOG.error('Request headers did not include X-Roles')
             return _http_forbidden(start_response)
 
         given_roles = set(roles.split(',')) if roles else EMPTY_SET
@@ -132,7 +132,7 @@ def wrap(app):
         try:
             authorized_roles = acl[method]
         except KeyError:
-            LOG.error(_('HTTP method not supported: %s') % method)
+            LOG.error('HTTP method not supported: {0}'.format(method))
             return _http_forbidden(start_response)
 
         # The user must have one of the roles that
@@ -141,9 +141,8 @@ def wrap(app):
             # Carry on
             return app(env, start_response)
 
-        logline = _('User not authorized to %(method)s '
-                    'the %(resource)s resource')
-        LOG.info(logline % {'method': method, 'resource': resource})
+        log_line = 'User not authorized to {0} the {1} resource'
+        LOG.info(log_line.format(method, resource))
         return _http_forbidden(start_response)
 
     return middleware

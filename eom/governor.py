@@ -185,8 +185,8 @@ def _create_limiter(redis_client):
             redis_client.hmset(project_id, {'c': 1.0, 't': now})
 
         except redis.exceptions.ConnectionError as ex:
-            message = _('Redis Error:{exception} for Project-ID:{project_id}')
-            LOG.warn((message.format(exception=ex, project_id=project_id)))
+            message = 'Redis Error:{0} for Project-ID:{1}'
+            LOG.warn(message.format(ex, project_id))
 
         if new_count > rate.limit:
             raise HardLimitError()
@@ -250,21 +250,23 @@ def wrap(app, redis_client):
         try:
             project_id = env['HTTP_X_PROJECT_ID']
         except KeyError:
-            LOG.debug(_('Request headers did not include X-Project-ID'))
+            LOG.debug('Request headers did not include X-Project-ID')
             return _http_400(start_response)
 
         rate = match_rate(project_id, path, method,
                           project_rates, rates)
         if rate is None:
-            LOG.debug(_('Requested path not recognized. Full steam ahead!'))
+            LOG.debug('Requested path not recognized. Full steam ahead!')
             return app(env, start_response)
 
         try:
             check_limit(project_id, rate)
         except HardLimitError:
-            message = _('Hit limit of {rate} per sec. for '
-                        'project {project_id} according to '
-                        'rate rule "{name}"')
+            message = (
+                'Hit limit of {rate} per sec. for '
+                'project {project_id} according to '
+                'rate rule "{name}"'
+            )
 
             time.sleep(throttle_milliseconds)
 

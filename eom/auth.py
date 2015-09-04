@@ -159,9 +159,7 @@ def _blacklist_token(redis_client, token, expires_in):
         return True
 
     except Exception as ex:
-        msg = _('Failed to cache the data - Exception: %(s_except)s') % {
-            's_except': ex,
-        }
+        msg = 'Failed to cache the data - Exception: {0}'.format(str(ex))
         LOG.error(msg)
         return False
 
@@ -175,14 +173,18 @@ def _is_token_blacklisted(redis_client, token):
     :returns: True on success, otherwise False
     """
     cached_data = None
+    cached_key = None
     try:
         cached_key = token
 
         cached_data = redis_client.get(cached_key)
-    except Exception:
-        LOG.debug(_('Failed to retrieve data to cache for key %(s_key)s') % {
-            's_key': cached_key
-        })
+    except Exception as ex:
+        LOG.debug(
+            (
+                'Failed to retrieve data to cache for key {0} '
+                'Exception: {1}'
+            ).format(cached_key, str(ex))
+        )
         cached_data = None
 
     if cached_data is None:
@@ -259,9 +261,7 @@ def _send_data_to_cache(redis_client, url, access_info, max_cache_life):
         return True
 
     except Exception as ex:
-        msg = _('Failed to cache the data - Exception: %(s_except)s') % {
-            's_except': ex,
-        }
+        msg = 'Failed to cache the data - Exception: {0}'.format(str(ex))
         LOG.error(msg)
         return False
 
@@ -277,15 +277,19 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
     :returns: a keystoneclient.access.AccessInfo on success or None
     """
     cached_data = None
+    cache_key = None
     try:
         # Try to get the data from the cache
         cache_key_tuple = (tenant, token, url)
         cache_key = _tuple_to_cache_key(cache_key_tuple)
         cached_data = redis_client.get(cache_key)
-    except Exception:
-        LOG.debug(_('Failed to retrieve data to cache for key %(s_key)s') % {
-            's_key': cache_key
-        })
+    except Exception as ex:
+        LOG.debug(
+            (
+                'Failed to retrieve data to cache for key {0}'
+                'Exception: {1}'
+            ).format(cache_key, str(ex))
+        )
         return None
 
     if cached_data is not None:
@@ -298,17 +302,14 @@ def _retrieve_data_from_cache(redis_client, url, tenant, token):
 
         except Exception as ex:
             # The cached object didn't match what we expected
-            msg = _('Stored Data does not contain any credentials - '
-                    'Exception: %(s_except)s; Data: $(s_data)s') % {
-                's_except': ex,
-                's_data': data
-            }
+            msg = (
+                'Stored Data does not contain any credentials - '
+                'Exception: {0}; Data: {1}'
+            ).format(str(ex), data)
             LOG.error(msg)
             return None
     else:
-        LOG.debug(_('No data in cache for key %(s_key)s') % {
-            's_key': cache_key
-        })
+        LOG.debug('No data in cache for key {0}'.format(cache_key))
         # It wasn't cached
         return None
 
@@ -344,10 +345,10 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
 
     except (exceptions.AuthorizationFailure, exceptions.Unauthorized) as ex:
         # Provided data was invalid and authorization failed
-        msg = _('Failed to authenticate against %(s_url) - %(s_except)s') % {
-            's_url': url,
-            's_except': ex
-        }
+        msg = 'Failed to authenticate against {0} - {1}'.format(
+            url,
+            str(ex)
+        )
         LOG.debug(msg)
 
         # Blacklist the token
@@ -356,10 +357,10 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
 
     except Exception as ex:
         # Provided data was invalid or something else went wrong
-        msg = _('Failed to authenticate against %(s_url) - %(s_except)s') % {
-            's_url': url,
-            's_except': ex
-        }
+        msg = 'Failed to authenticate against {0} - {1}'.format(
+            url,
+            str(ex)
+        )
         LOG.debug(msg)
 
         return None
@@ -447,7 +448,7 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl,
         if _is_token_blacklisted(redis_client, token):
             return False
 
-        # Try to get the client's access infomration
+        # Try to get the client's access information
         access_info = _get_access_info(redis_client,
                                        url,
                                        tenant,
@@ -456,10 +457,7 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl,
                                        max_cache_life)
 
         if access_info is None:
-            LOG.debug(_('Unable to get Access information for '
-                        '%(s_tenant)s') % {
-                's_tenant': tenant
-            })
+            LOG.debug('Unable to get Access info for {0}'.format(tenant))
             return False
 
         # provided data was valid, insert the information into the environment
@@ -493,12 +491,14 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl,
                 decode_check = base64.b64decode(env['HTTP_X_SERVICE_CATALOG'])
 
             except Exception:
-                LOG.debug(_('Failed to decode the data properly'))
+                LOG.debug('Failed to decode the data properly')
                 return False
 
             if decode_check != utf8_data:
-                LOG.debug(_('Decode Check: decoded data does not match '
-                            'encoded data'))
+                LOG.debug(
+                    'Decode Check: decoded data does not match '
+                    'encoded data'
+                )
                 return False
 
         # Project Scoped V3 or Tenant Scoped v2
@@ -523,11 +523,10 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl,
         return True
 
     except Exception as ex:
-        msg = _('Error while trying to authenticate against'
-                ' %(s_url)s - %(s_except)s') % {
-            's_url': url,
-            's_except': str(ex)
-        }
+        msg = 'Error while trying to authenticate against {0} - {1}'.format(
+            url,
+            str(ex)
+        )
         LOG.debug(msg)
         return False
 
@@ -576,15 +575,15 @@ def wrap(app, redis_client):
                                 env,
                                 blacklist_ttl,
                                 max_cache_life):
-                LOG.debug(_('Auth Token validated.'))
+                LOG.debug('Auth Token validated.')
                 return app(env, start_response)
 
             else:
                 # Validation failed for some reason, just error out as a 401
-                LOG.error(_('Auth Token validation failed.'))
+                LOG.error('Auth Token validation failed.')
                 return _http_unauthorized(start_response)
         except (KeyError, LookupError):
             # Header failure, error out with 412
-            LOG.error(_('Missing required headers.'))
+            LOG.error('Missing required headers.')
             return _http_precondition_failed(start_response)
     return middleware
