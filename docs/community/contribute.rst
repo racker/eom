@@ -3,10 +3,10 @@
 Contribute to EOM
 =================
 
-`Kurt Griffiths <http://kgriffs.com>`_ is the creator of EOM which is not maintained by
+`Kurt Griffiths <http://kgriffs.com>`_ is the creator of EOM which is now maintained by
 `Benjamen R. Meyer <http://github.com/BenjamenMeyer>`_ and
 `Sriram Madapusi Vasudevan <https://github.com/TheSriram/>`_.
-Everyone, like yourself, is welcome to contribute to by reviewing patches, implementing
+Everyone, like yourself, is welcome to contribute too by reviewing patches, implementing
 features, fixing bugs, and writing documentation for the project.
 
 Ideas and patches are always welcome.
