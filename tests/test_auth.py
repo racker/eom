@@ -81,9 +81,10 @@ class fake_client_object_raise(object):
 class fake_client_object_check_credentials(object):
 
     def get_raw_token_from_identity_service(self, auth_url, tenant_id, token):
-        LOG.debug(_('URL: %(s_url)s') % {'s_url': auth_url})
-        LOG.debug(_('Token: %(s_token)s') % {'s_token': token})
-        LOG.debug(_('Tenant: %(s_tenant)s') % {'s_tenant': tenant_id})
+        LOG.debug('URL: {0}'.format(auth_url))
+        LOG.debug('Token: {0}'.format(token))
+        LOG.debug('Tenant: {0}'.format(tenant_id))
+
         if token == 'valid_token' and tenant_id == 'valid_projectid':
             catalog_gen = servicecatalog.ServiceCatalogGenerator(
                 token, tenant_id)

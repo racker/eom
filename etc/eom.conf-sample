@@ -8,7 +8,8 @@ log_config_disable_existing = False
 [eom:auth_redis]
 host = 127.0.0.1
 port = 6379
-ssl_enable = False
+# redis_db = 0
+# ssl_enable = False
 # password = sample
 # ssl_keyfile = sample
 # ssl_certfile = sample
@@ -33,6 +34,7 @@ port = 6379
 
 [eom:bastion]
 unrestricted_routes = /v1/stats, /v1/health
+gate_headers = HTTP_X_FORWARDED_FOR
 log_config_file = ../etc/logging.conf-sample
 log_config_disable_existing = False
 
