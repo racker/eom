@@ -1,7 +1,7 @@
 EOM: Emerging OpenStack WSGI Middleware
 ===========================================
 
-:version: 0.5.0
+:version: 0.7.0
 
 .. image:: https://readthedocs.org/projects/eom/badge/
 	:target: https://readthedocs.org/projects/eom
