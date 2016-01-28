@@ -24,6 +24,7 @@ import msgpack
 from oslo_config import cfg
 import redis
 from redis import connection
+import requests
 import simplejson as json
 import six
 
@@ -40,6 +41,15 @@ AUTH_OPTIONS = [
     cfg.StrOpt(
         'auth_url',
         help='Identity url to authenticate tokens.'
+    ),
+    cfg.BoolOpt(
+        'alternate_validation',
+        default=False,
+        help=(
+            'Validate tokens using a less expensive call to identity. '
+            'The service catalog is omitted and cannot be forwarded when '
+            'this option is set to True.'
+        )
     ),
     cfg.IntOpt(
         'blacklist_ttl',
@@ -329,14 +339,31 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
     :returns: a keystoneclient.access.AccessInfo on success or None on error
     """
     try:
-        keystone = keystonev2_client.Client(tenant_id=tenant,
-                                            token=token,
-                                            auth_url=url)
+        # Try to authenticate the user and get the user information using
+        # only the data provided, no special administrative tokens required.
+        # When using the alternative validation method, the service catalog
+        # identity does not return a service catalog for valid tokens.
 
-    # Now try to authenticate the user and get the user information using
-    # only the data provided, no special administrative tokens required
-        access_info = keystone.get_raw_token_from_identity_service(
-            auth_url=url, tenant_id=tenant, token=token)
+        if get_conf().alternate_validation is True:
+            validation_url = url.rstrip('/') + '/tokens/{0}'.format(token)
+            headers = {
+                'Accept': 'application/json',
+                'X-Auth-Token': token
+            }
+            resp = requests.get(validation_url, headers=headers)
+
+            try:
+                resp_data = resp.json()['access']
+            except (KeyError, ValueError):
+                raise exceptions.InvalidResponse(response=resp)
+
+            access_info = access.AccessInfoV2(**resp_data)
+        else:
+            keystone = keystonev2_client.Client(tenant_id=tenant,
+                                                token=token,
+                                                auth_url=url)
+            access_info = keystone.get_raw_token_from_identity_service(
+                auth_url=url, tenant_id=tenant, token=token)
 
         # cache the data so it is easier to access next time
         _send_data_to_cache(redis_client, url, access_info, max_cache_life)

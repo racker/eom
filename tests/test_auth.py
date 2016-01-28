@@ -442,6 +442,37 @@ class TestAuth(util.TestCase):
                 else:
                     self.assertIsNotNone(keystone_error)
 
+    def test__retrieve_data_from_keystone_with_alt_auth(self):
+        redis_client = fakeredis_connection()
+
+        tenant_id = '172839405'
+        token = 'AaBbCcDdEeFf'
+        url = 'myurl'
+        bttl = 5
+
+        with mock.patch('eom.auth.get_conf') as mock_auth_conf:
+            with mock.patch('requests.get') as mock_requests:
+                mock_auth_conf.return_value.alternate_validation = True
+                cat = servicecatalog.ServiceCatalogGenerator(token, tenant_id)
+                resp_json = cat.generate_without_catalog()
+                mock_requests.return_value.json.return_value = resp_json
+
+                access_info = auth._retrieve_data_from_keystone(
+                    redis_client,
+                    url,
+                    tenant_id,
+                    token,
+                    bttl,
+                    self.default_max_cache_life
+                )
+
+                self.assertEqual(
+                    access_info,
+                    access.AccessInfoV2(
+                        cat.generate_without_catalog()['access']
+                    )
+                )
+
     def test_get_access_info(self):
         url = 'myurl'
         tenant_id = '172839405'
