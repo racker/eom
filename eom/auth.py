@@ -46,7 +46,7 @@ AUTH_OPTIONS = [
         'alternate_validation',
         default=False,
         help=(
-            'Validate tokens using a less expensive call to identity. '
+            'Validate tokens using a less expensive call to keystone. '
             'The service catalog is omitted and cannot be forwarded when '
             'this option is set to True.'
         )
@@ -345,12 +345,17 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
         # identity does not return a service catalog for valid tokens.
 
         if get_conf().alternate_validation is True:
-            validation_url = url.rstrip('/') + '/tokens/{0}'.format(token)
+            _url = url.rstrip('/') + '/tokens'
+            validation_url = _url + '/{0}'.format(token)
             headers = {
                 'Accept': 'application/json',
                 'X-Auth-Token': token
             }
             resp = requests.get(validation_url, headers=headers)
+            if resp.status_code >= 400:
+                LOG.debug('Request returned failure status: {0}'.format(
+                    resp.status_code))
+                raise exceptions.from_response(resp, 'GET', _url)
 
             try:
                 resp_data = resp.json()['access']
@@ -381,7 +386,9 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
         # Blacklist the token
         _blacklist_token(redis_client, token, blacklist_ttl)
         return None
-
+    except exceptions.RequestEntityTooLarge:
+        LOG.debug('Request entity too large error from authentication server.')
+        raise
     except Exception as ex:
         # Provided data was invalid or something else went wrong
         msg = 'Failed to authenticate against {0} - {1}'.format(
@@ -549,6 +556,9 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl,
 
         return True
 
+    except exceptions.RequestEntityTooLarge:
+        LOG.debug('Request entity too large error from authentication server.')
+        raise
     except Exception as ex:
         msg = 'Error while trying to authenticate against {0} - {1}'.format(
             url,
@@ -567,6 +577,15 @@ def _http_precondition_failed(start_response):
 def _http_unauthorized(start_response):
     """Responds with HTTP 401."""
     start_response('401 Unauthorized', [('Content-Length', '0')])
+    return []
+
+
+def _http_service_unavailable(start_response, delta):
+    """Responds with HTTP 503."""
+    response_headers = [
+        ('Content-Length', '0'), ('Retry-After', delta or '60')
+    ]
+    start_response('503 Service Unavailable', response_headers)
     return []
 
 
@@ -613,4 +632,11 @@ def wrap(app, redis_client):
             # Header failure, error out with 412
             LOG.error('Missing required headers.')
             return _http_precondition_failed(start_response)
+        except exceptions.RequestEntityTooLarge as exc:
+            LOG.error(
+                'Request too large, client should retry after {0}.'.format(
+                    exc.retry_after
+                )
+            )
+            return _http_service_unavailable(start_response, exc.retry_after)
     return middleware
