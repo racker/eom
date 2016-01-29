@@ -337,6 +337,28 @@ class TestAuth(util.TestCase):
                 self.default_max_cache_life)
             self.assertIsNone(keystone_create_error)
 
+    def test_retrieve_keystone_unauthorized_error_from_413_error(self):
+        url = 'myurl'
+        tenant_id = '789012345'
+        token = 'abcdefABCDEF'
+        bttl = 5
+
+        redis_client = fakeredis_connection()
+
+        with mock.patch(
+                'keystoneclient.v2_0.client.Client') as MockKeystoneClient:
+            MockKeystoneClient.side_effect = exceptions.AuthorizationFailure(
+                'Authorization Failed: Request Entity Too Large (HTTP 413)')
+            with testtools.ExpectedException(exceptions.RequestEntityTooLarge):
+                auth._retrieve_data_from_keystone(
+                    redis_client,
+                    url,
+                    tenant_id,
+                    token,
+                    bttl,
+                    self.default_max_cache_life
+                )
+
     def test_retrieve_keystone_bad_client(self):
         url = 'myurl'
         tenant_id = '789012345'
@@ -840,3 +862,9 @@ class TestAuth(util.TestCase):
             MockValidateClient.return_value = True
             self.auth(env_valid, self.start_response)
             self.assertEqual(self.status, '204 No Content')
+
+            MockValidateClient.side_effect = exceptions.RequestEntityTooLarge(
+                'Mock - invalid client object'
+            )
+            self.auth(env_valid, self.start_response)
+            self.assertEqual(self.status, '503 Service Unavailable')

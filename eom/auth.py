@@ -63,6 +63,14 @@ AUTH_OPTIONS = [
         # of 30 seconds so we won't brush up against the end
         # or overflow when adding to utcnow() later on
         default=MAX_CACHE_LIFE_DEFAULT
+    ),
+    cfg.IntOpt(
+        'retry_after',
+        default=60,
+        help=(
+            'seconds to wait before retrying the request '
+            'again upon getting (503 Service Unavailable) error.'
+        )
     )
 ]
 
@@ -376,6 +384,13 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
         return access_info
 
     except (exceptions.AuthorizationFailure, exceptions.Unauthorized) as ex:
+        # re-raise 413 here and later on respond with 503
+        if 'HTTP 413' in str(ex):
+            raise exceptions.RequestEntityTooLarge(
+                method='POST',
+                url=url,
+                http_status=413
+            )
         # Provided data was invalid and authorization failed
         msg = 'Failed to authenticate against {0} - {1}'.format(
             url,
@@ -583,7 +598,8 @@ def _http_unauthorized(start_response):
 def _http_service_unavailable(start_response, delta):
     """Responds with HTTP 503."""
     response_headers = [
-        ('Content-Length', '0'), ('Retry-After', delta or '60')
+        ('Content-Length', '0'),
+        ('Retry-After', delta or str(get_conf().retry_after))
     ]
     start_response('503 Service Unavailable', response_headers)
     return []

@@ -47,6 +47,7 @@ EOM Auth needs only a couple values in the auth section of the eom.conf file to 
 	log_config_file = /etc/eom/logging.conf
 	log_config_disable_existing = False
 	alternate_validation = False
+	retry_after = 60
 
 The auth_url specifies the full Keystone API including version. All calls made are in the context of the user
 being authenticated. To minimize calls, successful authentication information is cached.
