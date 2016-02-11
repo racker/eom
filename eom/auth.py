@@ -574,6 +574,7 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl,
     except exceptions.RequestEntityTooLarge:
         LOG.debug('Request entity too large error from authentication server.')
         raise
+
     except Exception as ex:
         msg = 'Error while trying to authenticate against {0} - {1}'.format(
             url,
@@ -648,6 +649,7 @@ def wrap(app, redis_client):
             # Header failure, error out with 412
             LOG.error('Missing required headers.')
             return _http_precondition_failed(start_response)
+
         except exceptions.RequestEntityTooLarge as exc:
             LOG.error(
                 'Request too large, client should retry after {0}.'.format(
@@ -655,4 +657,5 @@ def wrap(app, redis_client):
                 )
             )
             return _http_service_unavailable(start_response, exc.retry_after)
+
     return middleware
