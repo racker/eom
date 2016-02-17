@@ -413,3 +413,11 @@ class ServiceCatalogGenerator(object):
                 'user': self.user_section()
             }
         }
+
+    def generate_without_catalog(self):
+        return {
+            'access': {
+                'token': self.token_section(),
+                'user': self.user_section()
+            }
+        }

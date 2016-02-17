@@ -46,12 +46,19 @@ EOM Auth needs only a couple values in the auth section of the eom.conf file to 
 	blacklist_ttl = 3600000
 	log_config_file = /etc/eom/logging.conf
 	log_config_disable_existing = False
+	alternate_validation = False
+	retry_after = 60
 
 The auth_url specifies the full Keystone API including version. All calls made are in the context of the user
 being authenticated. To minimize calls, successful authentication information is cached.
 
 As a security precaution, if an authentication fails then the token is blacklisted for an administratively
 defined time period specified by blacklist_ttl. The value is stored in milliseconds.
+
+When too many requests are sent to the auth endpoint auth middleware will return a 503 Service Unavailable
+with Retry-After header that specifies number of seconds to wait before another attempt. The retry_after
+setting above provides a default value in the case auth middleware is unable to determine a value from
+authentication server.
 
 Caching
 -------

@@ -4,6 +4,8 @@ blacklist_ttl = 3600000
 max_cache_life = 600
 log_config_file = ../etc/logging.conf-sample
 log_config_disable_existing = False
+alternate_validation = False
+retry_after = 60
 
 [eom:auth_redis]
 host = 127.0.0.1

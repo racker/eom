@@ -28,7 +28,6 @@ import fakeredis
 import mock
 import requests
 import six
-import testtools
 
 from eom import governor
 from tests import util
@@ -215,8 +214,7 @@ class TestGovernor(util.TestCase):
             float(self.redis_client.hmget(1, 'c')[0]),
             float(self.limit)
         )
-        with testtools.ExpectedException(governor.HardLimitError):
-            call()
+        self.assertRaises(governor.HardLimitError, call)
 
     @mock.patch('time.time')
     def test_limit_reached_no_429(self, mock_time):

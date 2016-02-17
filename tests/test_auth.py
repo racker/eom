@@ -18,6 +18,7 @@ import base64
 import datetime
 import logging
 from wsgiref import simple_server
+import unittest
 
 import ddt
 import fakeredis
@@ -336,6 +337,29 @@ class TestAuth(util.TestCase):
                 self.default_max_cache_life)
             self.assertIsNone(keystone_create_error)
 
+    def test_retrieve_keystone_unauthorized_error_from_413_error(self):
+        url = 'myurl'
+        tenant_id = '789012345'
+        token = 'abcdefABCDEF'
+        bttl = 5
+
+        redis_client = fakeredis_connection()
+
+        with mock.patch(
+                'keystoneclient.v2_0.client.Client') as MockKeystoneClient:
+            MockKeystoneClient.side_effect = exceptions.AuthorizationFailure(
+                'Authorization Failed: Request Entity Too Large (HTTP 413)')
+            self.assertRaises(
+                exceptions.RequestEntityTooLarge,
+                auth._retrieve_data_from_keystone,
+                redis_client,
+                url,
+                tenant_id,
+                token,
+                bttl,
+                self.default_max_cache_life
+            )
+
     def test_retrieve_keystone_bad_client(self):
         url = 'myurl'
         tenant_id = '789012345'
@@ -441,6 +465,62 @@ class TestAuth(util.TestCase):
                     self.assertIsNone(keystone_error)
                 else:
                     self.assertIsNotNone(keystone_error)
+
+    def test__retrieve_data_from_keystone_alt_auth(self):
+        redis_client = fakeredis_connection()
+
+        tenant_id = '172839405'
+        token = 'AaBbCcDdEeFf'
+        url = 'myurl'
+        bttl = 5
+
+        with mock.patch('eom.auth.get_conf') as mock_auth_conf:
+            with mock.patch('requests.get') as mock_requests:
+                mock_auth_conf.return_value.alternate_validation = True
+                cat = servicecatalog.ServiceCatalogGenerator(token, tenant_id)
+                resp_json = cat.generate_without_catalog()
+                mock_requests.return_value.json.return_value = resp_json
+                mock_requests.return_value.status_code = 200
+
+                access_info = auth._retrieve_data_from_keystone(
+                    redis_client,
+                    url,
+                    tenant_id,
+                    token,
+                    bttl,
+                    self.default_max_cache_life
+                )
+
+                self.assertEqual(
+                    access_info,
+                    access.AccessInfoV2(
+                        cat.generate_without_catalog()['access']
+                    )
+                )
+
+    def test__retrieve_data_from_keystone_alt_auth_returns_413(self):
+        redis_client = fakeredis_connection()
+
+        tenant_id = '172839405'
+        token = 'AaBbCcDdEeFf'
+        url = 'myurl'
+        bttl = 5
+
+        with mock.patch('eom.auth.get_conf') as mock_auth_conf:
+            with mock.patch('requests.get') as mock_requests:
+                mock_auth_conf.return_value.alternate_validation = True
+                mock_requests.return_value.status_code = 413
+
+                self.assertRaises(
+                    exceptions.RequestEntityTooLarge,
+                    auth._retrieve_data_from_keystone,
+                    redis_client,
+                    url,
+                    tenant_id,
+                    token,
+                    bttl,
+                    self.default_max_cache_life
+                )
 
     def test_get_access_info(self):
         url = 'myurl'
@@ -778,7 +858,16 @@ class TestAuth(util.TestCase):
             self.auth(env_valid, self.start_response)
             self.assertEqual(self.status, '401 Unauthorized')
 
+            # With everything else working correctly, simulate too many
+            # requests sent to auth endpoint which should result in
+            # HTTP 503 - Service Unavailable
+            MockValidateClient.side_effect = exceptions.RequestEntityTooLarge(
+                'Mock - request entity too large'
+            )
+            self.auth(env_valid, self.start_response)
+            self.assertEqual(self.status, '503 Service Unavailable')
+
             # Client passes validation
-            MockValidateClient.return_value = True
+            MockValidateClient.side_effect = [True]
             self.auth(env_valid, self.start_response)
             self.assertEqual(self.status, '204 No Content')

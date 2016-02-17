@@ -24,6 +24,7 @@ import msgpack
 from oslo_config import cfg
 import redis
 from redis import connection
+import requests
 import simplejson as json
 import six
 
@@ -41,6 +42,15 @@ AUTH_OPTIONS = [
         'auth_url',
         help='Identity url to authenticate tokens.'
     ),
+    cfg.BoolOpt(
+        'alternate_validation',
+        default=False,
+        help=(
+            'Validate tokens using a less expensive call to keystone. '
+            'The service catalog is omitted and cannot be forwarded when '
+            'this option is set to True.'
+        )
+    ),
     cfg.IntOpt(
         'blacklist_ttl',
         help='Time to live in milliseconds for tokens marked as unauthorized.'
@@ -53,6 +63,14 @@ AUTH_OPTIONS = [
         # of 30 seconds so we won't brush up against the end
         # or overflow when adding to utcnow() later on
         default=MAX_CACHE_LIFE_DEFAULT
+    ),
+    cfg.IntOpt(
+        'retry_after',
+        default=60,
+        help=(
+            'seconds to wait before retrying the request '
+            'again upon getting (503 Service Unavailable) error.'
+        )
     )
 ]
 
@@ -329,14 +347,36 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
     :returns: a keystoneclient.access.AccessInfo on success or None on error
     """
     try:
-        keystone = keystonev2_client.Client(tenant_id=tenant,
-                                            token=token,
-                                            auth_url=url)
+        # Try to authenticate the user and get the user information using
+        # only the data provided, no special administrative tokens required.
+        # When using the alternative validation method, the service catalog
+        # identity does not return a service catalog for valid tokens.
 
-    # Now try to authenticate the user and get the user information using
-    # only the data provided, no special administrative tokens required
-        access_info = keystone.get_raw_token_from_identity_service(
-            auth_url=url, tenant_id=tenant, token=token)
+        if get_conf().alternate_validation is True:
+            _url = url.rstrip('/') + '/tokens'
+            validation_url = _url + '/{0}'.format(token)
+            headers = {
+                'Accept': 'application/json',
+                'X-Auth-Token': token
+            }
+            resp = requests.get(validation_url, headers=headers)
+            if resp.status_code >= 400:
+                LOG.debug('Request returned failure status: {0}'.format(
+                    resp.status_code))
+                raise exceptions.from_response(resp, 'GET', _url)
+
+            try:
+                resp_data = resp.json()['access']
+            except (KeyError, ValueError):
+                raise exceptions.InvalidResponse(response=resp)
+
+            access_info = access.AccessInfoV2(**resp_data)
+        else:
+            keystone = keystonev2_client.Client(tenant_id=tenant,
+                                                token=token,
+                                                auth_url=url)
+            access_info = keystone.get_raw_token_from_identity_service(
+                auth_url=url, tenant_id=tenant, token=token)
 
         # cache the data so it is easier to access next time
         _send_data_to_cache(redis_client, url, access_info, max_cache_life)
@@ -344,6 +384,13 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
         return access_info
 
     except (exceptions.AuthorizationFailure, exceptions.Unauthorized) as ex:
+        # re-raise 413 here and later on respond with 503
+        if 'HTTP 413' in str(ex):
+            raise exceptions.RequestEntityTooLarge(
+                method='POST',
+                url=url,
+                http_status=413
+            )
         # Provided data was invalid and authorization failed
         msg = 'Failed to authenticate against {0} - {1}'.format(
             url,
@@ -354,7 +401,9 @@ def _retrieve_data_from_keystone(redis_client, url, tenant, token,
         # Blacklist the token
         _blacklist_token(redis_client, token, blacklist_ttl)
         return None
-
+    except exceptions.RequestEntityTooLarge:
+        LOG.debug('Request entity too large error from authentication server.')
+        raise
     except Exception as ex:
         # Provided data was invalid or something else went wrong
         msg = 'Failed to authenticate against {0} - {1}'.format(
@@ -522,6 +571,10 @@ def _validate_client(redis_client, url, tenant, token, env, blacklist_ttl,
 
         return True
 
+    except exceptions.RequestEntityTooLarge:
+        LOG.debug('Request entity too large error from authentication server.')
+        raise
+
     except Exception as ex:
         msg = 'Error while trying to authenticate against {0} - {1}'.format(
             url,
@@ -540,6 +593,16 @@ def _http_precondition_failed(start_response):
 def _http_unauthorized(start_response):
     """Responds with HTTP 401."""
     start_response('401 Unauthorized', [('Content-Length', '0')])
+    return []
+
+
+def _http_service_unavailable(start_response, delta):
+    """Responds with HTTP 503."""
+    response_headers = [
+        ('Content-Length', '0'),
+        ('Retry-After', delta or str(get_conf().retry_after))
+    ]
+    start_response('503 Service Unavailable', response_headers)
     return []
 
 
@@ -586,4 +649,13 @@ def wrap(app, redis_client):
             # Header failure, error out with 412
             LOG.error('Missing required headers.')
             return _http_precondition_failed(start_response)
+
+        except exceptions.RequestEntityTooLarge as exc:
+            LOG.error(
+                'Request too large, client should retry after {0}.'.format(
+                    exc.retry_after
+                )
+            )
+            return _http_service_unavailable(start_response, exc.retry_after)
+
     return middleware
