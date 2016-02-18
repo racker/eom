@@ -16,6 +16,7 @@
 import base64
 import datetime
 import functools
+import hashlib
 
 from keystoneclient import access
 from keystoneclient import exceptions
@@ -149,10 +150,19 @@ def get_auth_redis_client():
 
 def _tuple_to_cache_key(t):
     """Convert a tuple to a cache key."""
-    key = '(%(s_data)s)' % {
+    key_data = '(%(s_data)s)' % {
         's_data': ','.join(t)
     }
-    return key
+    key = hashlib.sha1()
+    key.update(key_data)
+    return key.hexdigest()
+
+def _blacklist_cache_key(t):
+    """Convert token to a cache key for blacklists"""
+    key = hashlib.sha1()
+    key.update('blacklist')
+    key.update(t)
+    return key.hexdigest()
 
 
 __packer = msgpack.Packer(encoding='utf-8', use_bin_type=True)
@@ -170,7 +180,7 @@ def _blacklist_token(redis_client, token, expires_in):
     """
     try:
         cache_data = __packer.pack(True)
-        cache_key = token
+        cache_key = _blacklist_cache_key(token)
 
         redis_client.set(cache_key, cache_data)
         redis_client.pexpire(cache_key, expires_in)
@@ -193,7 +203,7 @@ def _is_token_blacklisted(redis_client, token):
     cached_data = None
     cached_key = None
     try:
-        cached_key = token
+        cached_key = _blacklist_cache_key(token)
 
         cached_data = redis_client.get(cached_key)
     except Exception as ex:
