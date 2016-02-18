@@ -111,14 +111,19 @@ def wrap(app_backdoor, app_gated):
 
     # WSGI callable
     def middleware(env, start_response):
-        path = env['PATH_INFO']
-        contains_gate_headers = set(gate_headers).issubset(set(env.keys()))
-        for route in unrestricted_routes:
-            if route == path:
-                if not contains_gate_headers:
-                    return app_backdoor(env, start_response)
-                else:
-                    return _http_gate_failure(start_response)
+        if len(gate_headers) > 0:
+            path = env['PATH_INFO']
+            contains_gate_headers = set(gate_headers).issubset(set(env.keys()))
+            for route in unrestricted_routes:
+                if route == path:
+                    if not contains_gate_headers:
+                        return app_backdoor(env, start_response)
+                    else:
+                        return _http_gate_failure(start_response)
+        else:
+            LOG.warn(
+                "Bastion is in use and gate_headers option is not configured."
+            )
 
         # NOTE(cabrera): not special route - keep calm and WSGI on
         return app_gated(env, start_response)
