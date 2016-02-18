@@ -1,0 +1,18 @@
+ChangeLog for EOM 0.8.0
+=======================
+
+New
+---
+- EOM Auth: Optional light-weight token validation without providing the Service Catalog
+- EOM Auth: Performance improvement for Authenticated Encrypted Tokens
+
+Breaking Changes
+----------------
+- EOM Auth: Token caching key changed
+- EOM Auth: Blacklist token Redis key changed
+
+Fixed
+-----
+- EOM Auth: Handle HTTP 413 from Keystone used for rate-limiting and return 503.
+- EOM Bastion: Emit warning when gate_headers not configured
+
