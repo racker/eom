@@ -16,6 +16,7 @@
 from __future__ import division
 import base64
 import datetime
+import hashlib
 import logging
 from wsgiref import simple_server
 import unittest
@@ -147,10 +148,25 @@ class TestAuth(util.TestCase):
 
     def test_cache_key(self):
         value_input = ('1', '2', '3', '4')
-        value_output = "(1,2,3,4)"
+        value_hash = hashlib.sha1()
+        value_hash.update("(1,2,3,4)")
+        value_output = value_hash.hexdigest()
 
         test_result = auth._tuple_to_cache_key(value_input)
         self.assertEqual(test_result, value_output)
+
+    def test_blacklist_cachekey(self):
+        value_input = 'fr4nkb3t4p3t3r'
+        value_hash = hashlib.sha1()
+        value_hash.update('blacklist')
+        value_hash.update(value_input)
+        value_output = value_hash.hexdigest()
+
+        test_result = auth._blacklist_cache_key(
+            value_input
+        )
+        self.assertNotEqual(value_input, test_result)
+        self.assertEqual(value_output, test_result)
 
     def test_blacklist_insertion(self):
         token = 'h0t3l4lph4tang0'
@@ -187,7 +203,9 @@ class TestAuth(util.TestCase):
                                              token,
                                              bttl)
         self.assertTrue(store_result)
-        stored_data = redis_client.get(token)
+        stored_data = redis_client.get(
+            auth._blacklist_cache_key(token)
+        )
         self.assertIsNotNone(stored_data)
         self.assertEqual(stored_data, packed_data)
         stored_data_original = msgpack.unpackb(stored_data, encoding='utf-8')
