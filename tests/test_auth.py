@@ -36,7 +36,6 @@ from tests import util
 
 
 LOG = logging.getLogger(__name__)
-auth.configure(util.CONF)
 
 
 def run_server(app, host, port):
@@ -56,7 +55,7 @@ fakeredis.FakeRedis.pexpire = fakeredis_pexpire
 
 
 def fakeredis_connection():
-    return fakeredis.FakeRedis()
+    return fakeredis.FakeRedis
 
 
 def fake_catalog(tenant, token):
@@ -117,10 +116,26 @@ class TestAuth(util.TestCase):
 
     def setUp(self):
         super(TestAuth, self).setUp()
-        redis_client = fakeredis_connection()
-        self.auth = auth.wrap(tests.util.app, redis_client)
+        self.redis_client = fakeredis_connection()
+
+        pool_patcher = mock.patch('redis.ConnectionPool')
+        self.mock_pool = pool_patcher.start()
+        self.addCleanup(pool_patcher.stop)
+
+        client_patcher = mock.patch('redis.Redis', new=self.redis_client)
+        self.mock_client = client_patcher.start()
+        self.addCleanup(client_patcher.stop)
+
+        self.auth = auth.Auth(tests.util.app, util.CONF)
         self.test_url = '/v2/vault'
         self.default_max_cache_life = 30
+
+        auth._CONF.set_override(
+            'blacklist_ttl',
+            5,
+            auth.AUTH_GROUP_NAME,
+            enforce_type=True
+        )
 
         # config = auth.CONF['eom:auth']
         # self.runtime_url = config['auth_url']
@@ -128,22 +143,13 @@ class TestAuth(util.TestCase):
 
     def tearDown(self):
         super(TestAuth, self).tearDown()
-        redis_client = fakeredis_connection()
-        redis_client.flushall()
+        self.redis_client = fakeredis_connection()
+        self.redis_client().flushall()
+        del self.redis_client
+        auth._CONF.clear_override('alternate_validation', auth.AUTH_GROUP_NAME)
 
         # config = auth.CONF['eom:auth']
         # config['auth_url'] = self.runtime_url
-
-    def test_get_conf_auth(self):
-        config = auth.get_conf()
-        self.assertIsNotNone(config)
-
-    def test_get_conf_auth_redis(self):
-        auth_config = auth.get_conf()
-        redis_config = auth.get_conf(True)
-        self.assertIsNotNone(auth_config)
-        self.assertIsNotNone(redis_config)
-        self.assertNotEqual(auth_config, redis_config)
 
     def test_cache_key(self):
         value_input = ('1', '2', '3', '4')
@@ -154,7 +160,7 @@ class TestAuth(util.TestCase):
             value_hash.update('(1,2,3,4)')
         value_output = value_hash.hexdigest()
 
-        test_result = auth._tuple_to_cache_key(value_input)
+        test_result = self.auth._tuple_to_cache_key(value_input)
         self.assertEqual(test_result, value_output)
 
     def test_blacklist_cachekey(self):
@@ -168,7 +174,7 @@ class TestAuth(util.TestCase):
             value_hash.update(value_input)
         value_output = value_hash.hexdigest()
 
-        test_result = auth._blacklist_cache_key(
+        test_result = self.auth._blacklist_cache_key(
             value_input
         )
         self.assertNotEqual(value_input, test_result)
@@ -176,7 +182,6 @@ class TestAuth(util.TestCase):
 
     def test_blacklist_insertion(self):
         token = 'h0t3l4lph4tang0'
-        bttl = 5
 
         redis_client = fakeredis_connection()
 
@@ -190,27 +195,21 @@ class TestAuth(util.TestCase):
                 'fakeredis.FakeRedis.pexpire') as MockRedisExpire:
             MockRedisExpire.side_effect = Exception(
                 'mock redis expire failure')
-            redis_error = auth._blacklist_token(redis_client,
-                                                token,
-                                                bttl)
+            redis_error = self.auth._blacklist_token(token)
             self.assertFalse(redis_error)
 
         # Redis fails to set the data
         with mock.patch(
                 'fakeredis.FakeRedis.set') as MockRedisSet:
             MockRedisSet.side_effect = Exception('mock redis set data failed')
-            redis_error = auth._blacklist_token(redis_client,
-                                                token,
-                                                bttl)
+            redis_error = self.auth._blacklist_token(token)
             self.assertFalse(redis_error)
 
         # Happy path
-        store_result = auth._blacklist_token(redis_client,
-                                             token,
-                                             bttl)
+        store_result = self.auth._blacklist_token(token)
         self.assertTrue(store_result)
-        stored_data = redis_client.get(
-            auth._blacklist_cache_key(token)
+        stored_data = redis_client().get(
+            self.auth._blacklist_cache_key(token)
         )
         self.assertIsNotNone(stored_data)
         self.assertEqual(stored_data, packed_data)
@@ -227,20 +226,17 @@ class TestAuth(util.TestCase):
     @ddt.unpack
     def test_expiration_time(self, time_to_check,
                              slop, slop_makes_younger_time):
-        auth_time = auth._get_expiration_time(time_to_check, slop)
+        auth_time = self.auth._get_expiration_time(time_to_check, slop)
         if slop_makes_younger_time:
             self.assertLess(auth_time, time_to_check)
         else:
             self.assertEqual(auth_time, time_to_check)
 
     def test_store_data_to_cache(self):
-        url = 'myfakeurl'
         tenant_id = '0987654321'
         token = 'fedcbaFEDCBA'
-        key_data = (tenant_id, token, url)
-        key_value = auth._tuple_to_cache_key(key_data)
-
-        redis_client = fakeredis_connection()
+        key_data = (tenant_id, token, util.CONF[auth.AUTH_GROUP_NAME].auth_url)
+        key_value = self.auth._tuple_to_cache_key(key_data)
 
         # The data that will get cached
         access_data = fake_catalog(tenant_id, token)
@@ -249,33 +245,31 @@ class TestAuth(util.TestCase):
                                     encoding='utf-8')
 
         # Redis fails the expiration time
-        with mock.patch(
-                'fakeredis.FakeRedis.pexpireat') as MockRedisExpire:
+        with mock.patch('fakeredis.FakeRedis.pexpireat') as MockRedisExpire:
             MockRedisExpire.side_effect = Exception(
                 'mock redis expire failure')
-            redis_error = auth._send_data_to_cache(redis_client,
-                                                   url,
-                                                   access_data,
-                                                   self.default_max_cache_life)
+            redis_error = self.auth._send_data_to_cache(
+                access_data,
+                self.default_max_cache_life
+            )
             self.assertFalse(redis_error)
 
         # Redis fails to set the data
-        with mock.patch(
-                'fakeredis.FakeRedis.set') as MockRedisSet:
+        with mock.patch('fakeredis.FakeRedis.set') as MockRedisSet:
             MockRedisSet.side_effect = Exception('mock redis set data failed')
-            redis_error = auth._send_data_to_cache(redis_client,
-                                                   url,
-                                                   access_data,
-                                                   self.default_max_cache_life)
+            redis_error = self.auth._send_data_to_cache(
+                access_data,
+                self.default_max_cache_life
+            )
             self.assertFalse(redis_error)
 
         # Happy Path
-        store_result = auth._send_data_to_cache(redis_client,
-                                                url,
-                                                access_data,
-                                                self.default_max_cache_life)
+        store_result = self.auth._send_data_to_cache(
+            access_data,
+            self.default_max_cache_life
+        )
         self.assertTrue(store_result)
-        stored_data = redis_client.get(key_value)
+        stored_data = self.redis_client().get(key_value)
         self.assertIsNotNone(stored_data)
         self.assertEqual(stored_data, packed_data)
         stored_data_original = msgpack.unpackb(stored_data, encoding='utf-8')
@@ -283,91 +277,89 @@ class TestAuth(util.TestCase):
         self.assertEqual(stored_data_original, access_data)
 
     def test_retrieve_cache_data(self):
-        url = 'myurl'
         tenant_id = '123456890'
         token = 'ABCDEFabcdef'
-        key_data = (tenant_id, token, url)
-        key_value = auth._tuple_to_cache_key(key_data)
+        key_data = (tenant_id, token, util.CONF[auth.AUTH_GROUP_NAME].auth_url)
+        key_value = self.auth._tuple_to_cache_key(key_data)
 
         data = fake_catalog(tenant_id, token)
         data_packed = msgpack.packb(data, encoding='utf-8', use_bin_type=True)
 
-        redis_client = fakeredis_connection()
-        self.assertTrue(redis_client.set(key_value, data_packed))
+        self.assertTrue(self.redis_client().set(key_value, data_packed))
 
         # Invalid Cache Error
         # - we use a random url for the cache conflict portion
-        invalid_cached_data = auth._retrieve_data_from_cache(redis_client,
-                                                             '/random/url',
-                                                             tenant_id,
-                                                             token)
+        auth._CONF.set_override(
+            'auth_url',
+            '/random/url',
+            auth.AUTH_GROUP_NAME,
+            enforce_type=True
+        )
+        invalid_cached_data = self.auth._retrieve_data_from_cache(
+            tenant_id,
+            token
+        )
         self.assertIsNone(invalid_cached_data)
+        auth._CONF.clear_override('auth_url', auth.AUTH_GROUP_NAME)
 
-        # Test: Redis Client tosses exception
-        def redis_toss_exception(*args, **kwargs):
-            raise Exception('mock redis exception')
+        with mock.patch.object(self.redis_client, 'get') as mock_redis_get:
+            mock_redis_get.side_effect = Exception('mock redis exception')
+            # self.auth = auth.Auth(tests.util.app, util.CONF)
 
-        redis_exception_result = auth._retrieve_data_from_cache(
-            redis_toss_exception, url, tenant_id, token)
+            redis_exception_result = self.auth._retrieve_data_from_cache(
+                tenant_id, token
+            )
+
         self.assertEqual(redis_exception_result, None)
 
         # msgpack error
-        with mock.patch('eom.auth.__unpacker') as MockMsgPacker:
+        with mock.patch('msgpack.unpackb') as MockMsgPacker:
             MockMsgPacker.side_effect = msgpack.exceptions.UnpackException(
                 'mock')
-            msgpack_error = auth._retrieve_data_from_cache(redis_client,
-                                                           url,
-                                                           tenant_id, token)
-            self.assertIsNone(msgpack_error)
+            self.auth = auth.Auth(tests.util.app, util.CONF)
+            msgpack_error = self.auth._retrieve_data_from_cache(
+                tenant_id, token
+            )
+
+        self.assertIsNone(msgpack_error)
 
         # Test: Happy case V2 data
-        happy_v2_result = auth._retrieve_data_from_cache(redis_client,
-                                                         url,
-                                                         tenant_id,
-                                                         token)
+        self.auth = auth.Auth(tests.util.app, util.CONF)
+        happy_v2_result = self.auth._retrieve_data_from_cache(
+            tenant_id,
+            token
+        )
         self.assertEqual(happy_v2_result, data)
 
     def test_retrieve_keystone_bad_client_authorization_error(self):
-        url = 'myurl'
         tenant_id = '789012345'
         token = 'abcdefABCDEF'
-        bttl = 5
-
-        redis_client = fakeredis_connection()
 
         with mock.patch(
                 'keystoneclient.v2_0.client.Client') as MockKeystoneClient:
             MockKeystoneClient.side_effect = exceptions.Unauthorized(
                 'Mock - invalid client object')
-            keystone_create_error = auth._retrieve_data_from_keystone(
-                redis_client,
-                url,
+            keystone_create_error = self.auth._retrieve_data_from_keystone(
                 tenant_id,
                 token,
-                bttl,
-                self.default_max_cache_life)
+                self.default_max_cache_life
+            )
             self.assertIsNone(keystone_create_error)
 
         with mock.patch(
                 'keystoneclient.v2_0.client.Client') as MockKeystoneClient:
             MockKeystoneClient.side_effect = exceptions.AuthorizationFailure(
                 'Mock - invalid client object')
-            keystone_create_error = auth._retrieve_data_from_keystone(
-                redis_client,
-                url,
+            keystone_create_error = self.auth._retrieve_data_from_keystone(
                 tenant_id,
                 token,
-                bttl,
-                self.default_max_cache_life)
+                self.default_max_cache_life
+            )
             self.assertIsNone(keystone_create_error)
 
     def test_retrieve_keystone_unauthorized_error_from_413_error(self):
-        url = 'myurl'
         tenant_id = '789012345'
         token = 'abcdefABCDEF'
-        bttl = 5
-
-        redis_client = fakeredis_connection()
 
         with mock.patch(
                 'keystoneclient.v2_0.client.Client') as MockKeystoneClient:
@@ -375,43 +367,30 @@ class TestAuth(util.TestCase):
                 'Authorization Failed: Request Entity Too Large (HTTP 413)')
             self.assertRaises(
                 exceptions.RequestEntityTooLarge,
-                auth._retrieve_data_from_keystone,
-                redis_client,
-                url,
+                self.auth._retrieve_data_from_keystone,
                 tenant_id,
                 token,
-                bttl,
                 self.default_max_cache_life
             )
 
     def test_retrieve_keystone_bad_client(self):
-        url = 'myurl'
         tenant_id = '789012345'
         token = 'abcdefABCDEF'
-        bttl = 5
-
-        redis_client = fakeredis_connection()
 
         with mock.patch(
                 'keystoneclient.v2_0.client.Client') as MockKeystoneClient:
             MockKeystoneClient.side_effect = Exception(
                 'Mock - invalid client object')
-            keystone_create_error = auth._retrieve_data_from_keystone(
-                redis_client,
-                url,
+            keystone_create_error = self.auth._retrieve_data_from_keystone(
                 tenant_id,
                 token,
-                bttl,
-                self.default_max_cache_life)
+                self.default_max_cache_life
+            )
             self.assertIsNone(keystone_create_error)
 
     def test_retrieve_keystone_bad_identity_access(self):
-        url = 'myurl'
         tenant_id = '789012345'
         token = 'abcdefABCDEF'
-        bttl = 5
-
-        redis_client = fakeredis_connection()
 
         with mock.patch(
                 'keystoneclient.v2_0.client.Client') as MockKeystoneClient:
@@ -419,20 +398,14 @@ class TestAuth(util.TestCase):
             # Fail to get a valid Client object
             # Note: Client() uses the requests package to do an auth;
             #   on failure it is the requests module that fails.
-            keystone_error = auth._retrieve_data_from_keystone(
-                redis_client,
-                url,
+            keystone_error = self.auth._retrieve_data_from_keystone(
                 tenant_id,
                 token,
-                bttl,
-                self.default_max_cache_life)
+                self.default_max_cache_life
+            )
             self.assertIsNone(keystone_error)
 
     def test_retrieve_keystone_check_credentials(self):
-        url = 'myurl'
-        bttl = 5
-
-        redis_client = fakeredis_connection()
 
         with mock.patch(
                 'keystoneclient.v2_0.client.Client') as MockKeystoneClient:
@@ -478,137 +451,120 @@ class TestAuth(util.TestCase):
             ]
 
             for creds in credential_sets:
-                keystone_error = auth._retrieve_data_from_keystone(
-                    redis_client,
-                    url,
+                keystone_error = self.auth._retrieve_data_from_keystone(
                     creds['projectid'],
                     creds['authtoken'],
-                    bttl,
-                    self.default_max_cache_life)
+                    self.default_max_cache_life
+                )
                 if creds['is_none']:
                     self.assertIsNone(keystone_error)
                 else:
                     self.assertIsNotNone(keystone_error)
 
     def test__retrieve_data_from_keystone_alt_auth(self):
-        redis_client = fakeredis_connection()
-
         tenant_id = '172839405'
         token = 'AaBbCcDdEeFf'
-        url = 'myurl'
-        bttl = 5
 
-        with mock.patch('eom.auth.get_conf') as mock_auth_conf:
-            with mock.patch('requests.get') as mock_requests:
-                mock_auth_conf.return_value.alternate_validation = True
-                cat = servicecatalog.ServiceCatalogGenerator(token, tenant_id)
-                resp_json = cat.generate_without_catalog()
-                mock_requests.return_value.json.return_value = resp_json
-                mock_requests.return_value.status_code = 200
+        auth._CONF.set_override(
+            'alternate_validation',
+            True,
+            auth.AUTH_GROUP_NAME,
+            enforce_type=True
+        )
 
-                access_info = auth._retrieve_data_from_keystone(
-                    redis_client,
-                    url,
-                    tenant_id,
-                    token,
-                    bttl,
-                    self.default_max_cache_life
+        with mock.patch('requests.get') as mock_requests:
+            cat = servicecatalog.ServiceCatalogGenerator(token, tenant_id)
+            resp_json = cat.generate_without_catalog()
+            mock_requests.return_value.json.return_value = resp_json
+            mock_requests.return_value.status_code = 200
+
+            access_info = self.auth._retrieve_data_from_keystone(
+                tenant_id,
+                token,
+                self.default_max_cache_life
+            )
+
+            self.assertEqual(
+                access_info,
+                access.AccessInfoV2(
+                    cat.generate_without_catalog()['access']
                 )
-
-                self.assertEqual(
-                    access_info,
-                    access.AccessInfoV2(
-                        cat.generate_without_catalog()['access']
-                    )
-                )
+            )
 
     def test__retrieve_data_from_keystone_alt_auth_returns_413(self):
-        redis_client = fakeredis_connection()
-
         tenant_id = '172839405'
         token = 'AaBbCcDdEeFf'
-        url = 'myurl'
-        bttl = 5
 
-        with mock.patch('eom.auth.get_conf') as mock_auth_conf:
-            with mock.patch('requests.get') as mock_requests:
-                mock_auth_conf.return_value.alternate_validation = True
-                mock_requests.return_value.status_code = 413
+        auth._CONF.set_override(
+            'alternate_validation',
+            True,
+            auth.AUTH_GROUP_NAME,
+            enforce_type=True
+        )
 
-                self.assertRaises(
-                    exceptions.RequestEntityTooLarge,
-                    auth._retrieve_data_from_keystone,
-                    redis_client,
-                    url,
-                    tenant_id,
-                    token,
-                    bttl,
-                    self.default_max_cache_life
-                )
+        with mock.patch('requests.get') as mock_requests:
+            mock_requests.return_value.status_code = 413
+
+            self.assertRaises(
+                exceptions.RequestEntityTooLarge,
+                self.auth._retrieve_data_from_keystone,
+                tenant_id,
+                token,
+                self.default_max_cache_life
+            )
 
     def test_get_access_info(self):
-        url = 'myurl'
         tenant_id = '172839405'
         token = 'AaBbCcDdEeFf'
-        bttl = 5
-
-        redis_client = fakeredis_connection()
 
         with mock.patch(
-                'eom.auth._retrieve_data_from_cache') as MockRetrieveCacheData:
+            'eom.auth.Auth._retrieve_data_from_cache'
+        ) as MockRetrieveCacheData:
 
             with mock.patch(
-                    'eom.auth._retrieve_data_from_keystone') as (
+                    'eom.auth.Auth._retrieve_data_from_keystone') as (
                     MockRetrieveKeystoneData):
 
                 # No data in cache, keystone can't retrieve
                 MockRetrieveCacheData.return_value = None
                 MockRetrieveKeystoneData.return_value = None
-                access_info = auth._get_access_info(
-                    redis_client,
-                    url,
+                access_info = self.auth._get_access_info(
                     tenant_id,
                     token,
-                    bttl,
-                    self.default_max_cache_life)
+                    self.default_max_cache_life
+                )
                 self.assertIsNone(access_info)
 
                 # Data in cache, not expired
                 MockRetrieveCacheData.return_value = fake_access_data(False)
                 MockRetrieveKeystoneData.return_value = None
-                access_info = auth._get_access_info(
-                    redis_client,
-                    url,
+                access_info = self.auth._get_access_info(
                     tenant_id,
                     token,
-                    bttl,
-                    self.default_max_cache_life)
+                    self.default_max_cache_life
+                )
                 self.assertEqual(access_info,
                                  MockRetrieveCacheData.return_value)
 
                 # No data in cache, keystone retrieves
                 MockRetrieveCacheData.return_value = None
                 MockRetrieveKeystoneData.return_value = fake_access_data(False)
-                access_info = auth._get_access_info(
-                    redis_client,
-                    url,
+                access_info = self.auth._get_access_info(
                     tenant_id,
                     token,
-                    bttl,
-                    self.default_max_cache_life)
+                    self.default_max_cache_life
+                )
                 self.assertEqual(access_info,
                                  MockRetrieveKeystoneData.return_value)
 
                 # Expired data in cache, keystone can't retrieve
                 MockRetrieveCacheData.return_value = fake_access_data(True)
                 MockRetrieveKeystoneData.return_value = None
-                access_info = auth._get_access_info(
-                    redis_client,
-                    url,
+                access_info = self.auth._get_access_info(
                     tenant_id,
                     token,
-                    bttl,
-                    self.default_max_cache_life)
+                    self.default_max_cache_life
+                )
                 self.assertNotEqual(access_info,
                                     MockRetrieveCacheData.return_value)
                 self.assertIsNone(access_info)
@@ -616,13 +572,11 @@ class TestAuth(util.TestCase):
                 # No data in cache, keystone returns expired data
                 MockRetrieveCacheData.return_value = None
                 MockRetrieveKeystoneData.return_value = fake_access_data(True)
-                access_info = auth._get_access_info(
-                    redis_client,
-                    url,
+                access_info = self.auth._get_access_info(
                     tenant_id,
                     token,
-                    bttl,
-                    self.default_max_cache_life)
+                    self.default_max_cache_life
+                )
                 self.assertNotEqual(access_info,
                                     MockRetrieveKeystoneData.return_value)
                 self.assertIsNone(access_info)
@@ -630,13 +584,11 @@ class TestAuth(util.TestCase):
                 # Expired data in cache, keystone returns expired data
                 MockRetrieveCacheData.return_value = fake_access_data(True)
                 MockRetrieveKeystoneData.return_value = fake_access_data(True)
-                access_info = auth._get_access_info(
-                    redis_client,
-                    url,
+                access_info = self.auth._get_access_info(
                     tenant_id,
                     token,
-                    bttl,
-                    self.default_max_cache_life)
+                    self.default_max_cache_life
+                )
                 self.assertNotEqual(access_info,
                                     MockRetrieveCacheData.return_value)
                 self.assertNotEqual(access_info,
@@ -644,91 +596,69 @@ class TestAuth(util.TestCase):
                 self.assertIsNone(access_info)
 
     def test_validate_client_exception(self):
-        url = 'myurl'
         tenant_id = '172839405'
         token = 'AaBbCcDdEeFf'
 
-        redis_client = fakeredis_connection()
-        bttl = 5
-
         # Throw an exception - anything, just needs to throw
         with mock.patch(
-                'eom.auth._get_access_info') as MockGetAccessInfo:
+                'eom.auth.Auth._get_access_info') as MockGetAccessInfo:
 
             env_exception_thrown = {}
             MockGetAccessInfo.side_effect = Exception(
                 'mock - just blowing it up')
-            result = auth._validate_client(redis_client,
-                                           url,
-                                           tenant_id,
-                                           token,
-                                           env_exception_thrown,
-                                           bttl,
-                                           self.default_max_cache_life)
+            result = self.auth._validate_client(
+                tenant_id,
+                token,
+                env_exception_thrown,
+                self.default_max_cache_life
+            )
             self.assertFalse(result)
 
     def test_validate_client_invalid_data(self):
-        url = 'myurl'
         tenant_id = '172839405'
         token = 'AaBbCcDdEeFf'
 
-        redis_client = fakeredis_connection()
-        bttl = 5
-
         # No data is returned
-        with mock.patch(
-                'eom.auth._get_access_info') as MockGetAccessInfo:
-
+        with mock.patch('eom.auth.Auth._get_access_info') as MockGetAccessInfo:
             env_no_data = {}
             MockGetAccessInfo.return_value = None
-            result = auth._validate_client(redis_client,
-                                           url,
-                                           tenant_id,
-                                           token,
-                                           env_no_data,
-                                           bttl,
-                                           self.default_max_cache_life)
+            result = self.auth._validate_client(
+                tenant_id,
+                token,
+                env_no_data,
+                self.default_max_cache_life
+            )
             self.assertFalse(result)
 
     def test_validate_client_token_blacklisted(self):
-        url = 'myurl'
         tenant_id = '504938271'
         token = '1nd14r0m303ch0n0v3mb3r3ch0'
 
-        redis_client = fakeredis_connection()
-        bttl = 5
-
         # We have data
         with mock.patch(
-                'eom.auth._is_token_blacklisted') as MockBlacklist:
-
+                'eom.auth.Auth._is_token_blacklisted') as MockBlacklist:
             env_result = {}
             MockBlacklist.return_value = True
-            result = auth._validate_client(redis_client,
-                                           url,
-                                           tenant_id,
-                                           token,
-                                           env_result,
-                                           bttl,
-                                           self.default_max_cache_life)
+            result = self.auth._validate_client(
+                tenant_id,
+                token,
+                env_result,
+                self.default_max_cache_life
+            )
             self.assertFalse(result)
 
     def test_validate_client_b64decode_error(self):
-        url = 'myurl'
         tenant_id = '172839405'
         token = 'AaBbCcDdEeFf'
-
-        redis_client = fakeredis_connection()
-        bttl = 5
 
         # The data that will get cached
         access_info = fake_catalog(tenant_id, token)
 
         # We have data
         with mock.patch(
-                'eom.auth._get_access_info') as MockGetAccessInfo:
+                'eom.auth.Auth._get_access_info') as MockGetAccessInfo:
             with mock.patch(
-                    'eom.auth._is_token_blacklisted') as MockBlacklist:
+                    'eom.auth.Auth._is_token_blacklisted') as MockBlacklist:
                 with mock.patch(
                         'base64.b64decode') as MockB64Decode:
 
@@ -738,22 +668,17 @@ class TestAuth(util.TestCase):
                     env_result = {}
                     MockBlacklist.return_value = False
                     MockGetAccessInfo.return_value = access_info
-                    result = auth._validate_client(redis_client,
-                                                   url,
-                                                   tenant_id,
-                                                   token,
-                                                   env_result,
-                                                   bttl,
-                                                   self.default_max_cache_life)
+                    result = self.auth._validate_client(
+                        tenant_id,
+                        token,
+                        env_result,
+                        self.default_max_cache_life
+                    )
                     self.assertFalse(result)
 
     def test_validate_client_valid_data(self):
-        url = 'myurl'
         tenant_id = '172839405'
         token = 'AaBbCcDdEeFf'
-
-        redis_client = fakeredis_connection()
-        bttl = 5
 
         # The data that will get cached
         access_info = fake_catalog(tenant_id, token)
@@ -771,20 +696,19 @@ class TestAuth(util.TestCase):
 
         # We have data
         with mock.patch(
-                'eom.auth._get_access_info') as MockGetAccessInfo:
+                'eom.auth.Auth._get_access_info') as MockGetAccessInfo:
             with mock.patch(
-                    'eom.auth._is_token_blacklisted') as MockBlacklist:
+                    'eom.auth.Auth._is_token_blacklisted') as MockBlacklist:
 
                 env_result = {}
                 MockBlacklist.return_value = False
                 MockGetAccessInfo.return_value = access_info
-                result = auth._validate_client(redis_client,
-                                               url,
-                                               tenant_id,
-                                               token,
-                                               env_result,
-                                               bttl,
-                                               self.default_max_cache_life)
+                result = self.auth._validate_client(
+                    tenant_id,
+                    token,
+                    env_result,
+                    self.default_max_cache_life
+                )
                 self.assertTrue(result)
                 self.assertEqual(env_result['HTTP_X_IDENTITY_STATUS'],
                                  'Confirmed')
@@ -854,7 +778,7 @@ class TestAuth(util.TestCase):
     def test_eom_auth_wrap(self):
 
         with mock.patch(
-                'eom.auth._validate_client') as MockValidateClient:
+                'eom.auth.Auth._validate_client') as MockValidateClient:
 
             # Create a LookupError or KeyError when the X-Auth-Token
             # Header is not located
