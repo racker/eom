@@ -23,9 +23,6 @@ from tests.util.httpstatsd import HttpStatsdService
 from tests.util.statsd_http_client import HttpStatsdClient
 
 
-metrics.configure(util.CONF)
-
-
 class TestMetrics(util.TestCase):
 
     def setUp(self):
@@ -38,27 +35,23 @@ class TestMetrics(util.TestCase):
         super(TestMetrics, self).tearDown()
         StackInABox.reset_services()
 
-    def test_get_conf(self):
-        config = metrics.get_conf()
-        self.assertIsNotNone(config)
-
     def test_basic(self):
         with stackinabox.util.requests_mock.activate():
             stackinabox.util.requests_mock.requests_mock_registration(
                 'localhost')
-            with mock.patch('statsd.StatsClient') as mok_statsd_client:
-                mok_statsd_client.return_value = self.statsd_client
+            with mock.patch('statsd.StatsClient') as mock_statsd_client:
+                mock_statsd_client.return_value = self.statsd_client
 
-                self.metrics = metrics.wrap(util.app)
+                self.metrics = metrics.Metrics(util.app, util.CONF)
 
     def test_delete(self):
         with stackinabox.util.requests_mock.activate():
             stackinabox.util.requests_mock.requests_mock_registration(
                 'localhost')
-            with mock.patch('statsd.StatsClient') as mok_statsd_client:
-                mok_statsd_client.return_value = self.statsd_client
+            with mock.patch('statsd.StatsClient') as mock_statsd_client:
+                mock_statsd_client.return_value = self.statsd_client
 
-                self.metrics = metrics.wrap(util.app)
+                self.metrics = metrics.Metrics(util.app, util.CONF)
 
                 my_env = self.create_env('/', method='DELETE')
 
@@ -70,10 +63,10 @@ class TestMetrics(util.TestCase):
         with stackinabox.util.requests_mock.activate():
             stackinabox.util.requests_mock.requests_mock_registration(
                 'localhost')
-            with mock.patch('statsd.StatsClient') as mok_statsd_client:
-                mok_statsd_client.return_value = self.statsd_client
+            with mock.patch('statsd.StatsClient') as mock_statsd_client:
+                mock_statsd_client.return_value = self.statsd_client
 
-                self.metrics = metrics.wrap(util.app)
+                self.metrics = metrics.Metrics(util.app, util.CONF)
 
                 my_env = self.create_env('/', method='GET')
 
@@ -85,10 +78,10 @@ class TestMetrics(util.TestCase):
         with stackinabox.util.requests_mock.activate():
             stackinabox.util.requests_mock.requests_mock_registration(
                 'localhost')
-            with mock.patch('statsd.StatsClient') as mok_statsd_client:
-                mok_statsd_client.return_value = self.statsd_client
+            with mock.patch('statsd.StatsClient') as mock_statsd_client:
+                mock_statsd_client.return_value = self.statsd_client
 
-                self.metrics = metrics.wrap(util.app)
+                self.metrics = metrics.Metrics(util.app, util.CONF)
 
                 my_env = self.create_env('/', method='HEAD')
 
@@ -100,10 +93,10 @@ class TestMetrics(util.TestCase):
         with stackinabox.util.requests_mock.activate():
             stackinabox.util.requests_mock.requests_mock_registration(
                 'localhost')
-            with mock.patch('statsd.StatsClient') as mok_statsd_client:
-                mok_statsd_client.return_value = self.statsd_client
+            with mock.patch('statsd.StatsClient') as mock_statsd_client:
+                mock_statsd_client.return_value = self.statsd_client
 
-                self.metrics = metrics.wrap(util.app)
+                self.metrics = metrics.Metrics(util.app, util.CONF)
 
                 my_env = self.create_env('/', method='PATCH')
 
@@ -115,10 +108,10 @@ class TestMetrics(util.TestCase):
         with stackinabox.util.requests_mock.activate():
             stackinabox.util.requests_mock.requests_mock_registration(
                 'localhost')
-            with mock.patch('statsd.StatsClient') as mok_statsd_client:
-                mok_statsd_client.return_value = self.statsd_client
+            with mock.patch('statsd.StatsClient') as mock_statsd_client:
+                mock_statsd_client.return_value = self.statsd_client
 
-                self.metrics = metrics.wrap(util.app)
+                self.metrics = metrics.Metrics(util.app, util.CONF)
 
                 my_env = self.create_env('/', method='POST')
 
@@ -130,10 +123,10 @@ class TestMetrics(util.TestCase):
         with stackinabox.util.requests_mock.activate():
             stackinabox.util.requests_mock.requests_mock_registration(
                 'localhost')
-            with mock.patch('statsd.StatsClient') as mok_statsd_client:
-                mok_statsd_client.return_value = self.statsd_client
+            with mock.patch('statsd.StatsClient') as mock_statsd_client:
+                mock_statsd_client.return_value = self.statsd_client
 
-                self.metrics = metrics.wrap(util.app)
+                self.metrics = metrics.Metrics(util.app, util.CONF)
 
                 my_env = self.create_env('/', method='PUT')
 
@@ -145,10 +138,10 @@ class TestMetrics(util.TestCase):
         with stackinabox.util.requests_mock.activate():
             stackinabox.util.requests_mock.requests_mock_registration(
                 'localhost')
-            with mock.patch('statsd.StatsClient') as mok_statsd_client:
-                mok_statsd_client.return_value = self.statsd_client
+            with mock.patch('statsd.StatsClient') as mock_statsd_client:
+                mock_statsd_client.return_value = self.statsd_client
 
-                self.metrics = metrics.wrap(util.app)
+                self.metrics = metrics.Metrics(util.app, util.CONF)
 
                 my_env = self.create_env('/', method='INVALID')
 

@@ -25,8 +25,8 @@ from eom.utils import log as logging
 _CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-OPT_GROUP_NAME = 'eom:metrics'
-OPTIONS = [
+METRICS_GROUP = 'eom:metrics'
+METRICS_OPTIONS = [
     cfg.StrOpt('address',
                help='host for statsd server.',
                required=True,
@@ -39,99 +39,101 @@ OPTIONS = [
                 help='keys for regexes for the paths of the WSGI app',
                 required=False,
                 default=[]),
-
     cfg.ListOpt('path_regexes_values',
                 help='regexes for the paths of the WSGI app',
                 required=False,
                 default=[]),
-
     cfg.StrOpt("prefix",
                help="Prefix for graphite metrics",
                required=False,
                default=""),
-
     cfg.StrOpt('app_name',
                help="Application name",
                required=True)
 ]
 
 
-def configure(config):
-    global _CONF
-    global LOG
+class Metrics(object):
 
-    _CONF = config
-    _CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
+    def __init__(self, app, conf):
+        self.app = app
 
-    logging.register(_CONF, OPT_GROUP_NAME)
-    logging.setup(_CONF, OPT_GROUP_NAME)
-    LOG = logging.getLogger(__name__)
+        conf.register_opts(METRICS_OPTIONS, group=METRICS_GROUP)
 
+        self._metrics_conf = conf[METRICS_GROUP]
 
-def get_conf():
-    global _CONF
-    return _CONF[OPT_GROUP_NAME]
+        regex_strings = zip(
+            self._metrics_conf.path_regexes_keys,
+            self._metrics_conf.path_regexes_values
+        )
+        self.regex = []
+        for (method, pattern) in regex_strings:
+            self.regex.append((method, re.compile(pattern)))
 
+        self.client = statsd.StatsClient(
+            host=self._metrics_conf.address,
+            port=self._metrics_conf.port,
+            prefix=self._metrics_conf.prefix
+        )
 
-def wrap(app):
-    addr = _CONF[OPT_GROUP_NAME].address
-    port = _CONF[OPT_GROUP_NAME].port
-    keys = _CONF[OPT_GROUP_NAME].path_regexes_keys
-    values = _CONF[OPT_GROUP_NAME].path_regexes_values
-    prefix = _CONF[OPT_GROUP_NAME].prefix
-    app_name = _CONF[OPT_GROUP_NAME].app_name
+        # initialize buckets
+        for request_method in [
+            "GET", "PUT", "HEAD", "POST", "DELETE", "PATCH"
+        ]:
+            for name, regexstr in regex_strings:
+                for code in ["2xx", "4xx", "5xx"]:
+                    self.client.incr(
+                        self._metrics_conf.app_name + "." +
+                        socket.gethostname() + ".requests." +
+                        request_method + "." + name + "." + code
+                    )
+                    self.client.decr(
+                        self._metrics_conf.app_name + "." +
+                        socket.gethostname() + ".requests." +
+                        request_method + "." + name + "." + code
+                    )
 
-    regex_strings = zip(keys, values)
-    regex = []
-    for (method, pattern) in regex_strings:
-        regex.append((method, re.compile(pattern)))
-
-    client = statsd.StatsClient(host=addr,
-                                port=port,
-                                prefix=prefix)
-
-    # initialize buckets
-    for request_method in ["GET", "PUT", "HEAD", "POST", "DELETE", "PATCH"]:
-        for name, regexstr in regex_strings:
-            for code in ["2xx", "4xx", "5xx"]:
-                client.incr(app_name + "." + socket.gethostname() +
-                            ".requests." + request_method + "." +
-                            name + "." + code)
-                client.decr(app_name + "." + socket.gethostname() +
-                            ".requests." + request_method + "." +
-                            name + "." + code)
-
-    def middleware(env, start_response):
-
+    def __call__(self, env, start_response):
         request_method = env["REQUEST_METHOD"]
         path = env["PATH_INFO"]
         hostname = socket.gethostname()
         api_method = "unknown"
 
-        for (method, regex_pattern) in regex:
+        for (method, regex_pattern) in self.regex:
             if regex_pattern.match(path):
                 api_method = method
 
         def _start_response(status, headers, *args):
-            status_path = (app_name + "." + hostname + ".requests." +
-                           request_method + "." + api_method)
+            status_path = '.'.join(
+                [
+                    self._metrics_conf.app_name,
+                    hostname,
+                    "requests",
+                    request_method,
+                    api_method
+                ]
+            )
             status_code = int(status[:3])
             if status_code / 500 == 1:
-                client.incr(status_path + ".5xx")
+                self.client.incr(status_path + ".5xx")
             elif status_code / 400 == 1:
-                client.incr(status_path + ".4xx")
+                self.client.incr(status_path + ".4xx")
             elif status_code / 200 == 1:
-                client.incr(status_path + ".2xx")
+                self.client.incr(status_path + ".2xx")
 
             return start_response(status, headers, *args)
 
         start = time.time() * 1000
-        response = app(env, _start_response)
+        response = self.app(env, _start_response)
         stop = time.time() * 1000
 
         elapsed = stop - start
-        client.timing(app_name + "." + hostname + ".latency." +
-                      request_method, elapsed)
+        self.client.timing('.'.join(
+            [
+                self._metrics_conf.app_name,
+                hostname,
+                ".latency.",
+                request_method
+            ]
+        ), elapsed)
         return response
-
-    return middleware
