@@ -17,19 +17,12 @@ import eom.rbac
 from tests import util
 
 
-eom.rbac.configure(util.CONF)
-
-
 class TestRBAC(util.TestCase):
 
     def setUp(self):
         super(TestRBAC, self).setUp()
 
-        self.rbac = eom.rbac.wrap(util.app)
-
-    def test_get_conf(self):
-        config = eom.rbac.get_conf()
-        self.assertIsNotNone(config)
+        self.rbac = eom.rbac.Rbac(util.app, util.CONF)
 
     def test_noacl(self):
         env = self.create_env('/v1')

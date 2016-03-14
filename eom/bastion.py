@@ -52,7 +52,6 @@ from oslo_config import cfg
 
 from eom.utils import log as logging
 
-_CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 OPT_GROUP_NAME = 'eom:bastion'
@@ -73,59 +72,54 @@ OPTIONS = [
 ]
 
 
-def configure(config):
-    global _CONF
-    global LOG
+class Bastion(object):
 
-    _CONF = config
-    _CONF.register_opts(OPTIONS, group=OPT_GROUP_NAME)
+    def __init__(self, app_backdoor, app_gated, conf):
+        """Creates a backdoor to a set of routes for the app.
 
-    logging.register(_CONF, OPT_GROUP_NAME)
-    logging.setup(_CONF, OPT_GROUP_NAME)
-    LOG = logging.getLogger(__name__)
+        :param app_backdoor: an entry point in the app that bypasses middleware
+        :type app_backdoor: wsgi_app
+        :param app_gated: app all wrapped and safe
+        :type app_gated: wsgi_app
+        :param conf: configuration options for bastion middleware
+        :type conf: oslo_config.cfg.ConfigOpts
+        :returns: a new WSGI app that wraps the original with bastion powers
+        :rtype: wsgi_app
+        """
+        self.conf = conf
+        conf.register_opts(OPTIONS, group=OPT_GROUP_NAME)
 
+        logging.register(conf, OPT_GROUP_NAME)
+        logging.setup(conf, OPT_GROUP_NAME)
 
-def get_conf():
-    global _CONF
-    return _CONF[OPT_GROUP_NAME]
+        self.app_backdoor = app_backdoor
+        self.app_gated = app_gated
 
+        self.unrestricted_routes = conf[OPT_GROUP_NAME].unrestricted_routes
+        self.gate_headers = conf[OPT_GROUP_NAME].gate_headers
 
-def _http_gate_failure(start_response):
-    """Responds with HTTP 404"""
-    start_response('404 Not Found', [('Content-Length', '0')])
-    return []
+    @staticmethod
+    def _http_gate_failure(start_response):
+        """Responds with HTTP 404"""
+        start_response('404 Not Found', [('Content-Length', '0')])
+        return []
 
-
-def wrap(app_backdoor, app_gated):
-    """Creates a backdoor to a set of routes for the app.
-
-    :param app_backdoor: an entry point in the app that bypasses middleware
-    :type app_backdoor: wsgi_app
-    :param app_gated: app all wrapped and safe
-    :type app_gated: wsgi_app
-    :returns: a new WSGI app that wraps the original with bastion powers
-    :rtype: wsgi_app
-    """
-    unrestricted_routes = _CONF[OPT_GROUP_NAME].unrestricted_routes
-    gate_headers = _CONF[OPT_GROUP_NAME].gate_headers
-
-    # WSGI callable
-    def middleware(env, start_response):
-        if len(gate_headers) > 0:
+    def __call__(self, env, start_response):
+        if len(self.gate_headers) > 0:
             path = env['PATH_INFO']
-            contains_gate_headers = set(gate_headers).issubset(set(env.keys()))
-            for route in unrestricted_routes:
+            contains_gate_headers = set(self.gate_headers).issubset(
+                set(env.keys())
+            )
+            for route in self.unrestricted_routes:
                 if route == path:
                     if not contains_gate_headers:
-                        return app_backdoor(env, start_response)
+                        return self.app_backdoor(env, start_response)
                     else:
-                        return _http_gate_failure(start_response)
+                        return self._http_gate_failure(start_response)
         else:
             LOG.warn(
                 "Bastion is in use and gate_headers option is not configured."
             )
 
         # NOTE(cabrera): not special route - keep calm and WSGI on
-        return app_gated(env, start_response)
-
-    return middleware
+        return self.app_gated(env, start_response)

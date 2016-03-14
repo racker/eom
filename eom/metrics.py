@@ -22,7 +22,6 @@ import statsd
 
 from eom.utils import log as logging
 
-_CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 METRICS_GROUP = 'eom:metrics'
@@ -59,6 +58,9 @@ class Metrics(object):
         self.app = app
 
         conf.register_opts(METRICS_OPTIONS, group=METRICS_GROUP)
+
+        logging.register(conf, METRICS_GROUP)
+        logging.setup(conf, METRICS_GROUP)
 
         self._metrics_conf = conf[METRICS_GROUP]
 

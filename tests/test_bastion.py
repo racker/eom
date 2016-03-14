@@ -18,8 +18,6 @@ import ddt
 from eom import bastion
 from tests import util
 
-bastion.configure(util.CONF)
-
 
 @ddt.ddt
 class TestBastion(util.TestCase):
@@ -29,14 +27,14 @@ class TestBastion(util.TestCase):
 
         self.app = util.app
         self.wrapped_app = util.wrap_403(self.app)
-        self.bastion = bastion.wrap(self.app, self.wrapped_app)
+        self.bastion = bastion.Bastion(self.app, self.wrapped_app, util.CONF)
         self.unrestricted_route = '/v1/health'
         self.normal_route = '/v1'
 
     def tearDown(self):
         super(TestBastion, self).tearDown()
 
-        bastion._CONF.clear_override('gate_headers', bastion.OPT_GROUP_NAME)
+        util.CONF.clear_override('gate_headers', bastion.OPT_GROUP_NAME)
 
     def _expect(self, env, code):
         # NOTE(cabrera): 204 means we used the backdoor that bastion
@@ -48,10 +46,6 @@ class TestBastion(util.TestCase):
                   404: '404 Not Found'}
         self.bastion(env, self.start_response)
         self.assertEqual(self.status, lookup[code])
-
-    def test_get_conf(self):
-        config = bastion.get_conf()
-        self.assertIsNotNone(config)
 
     def test_restricted_route_hits_gate(self):
         env = self.create_env(self.normal_route)
@@ -79,14 +73,14 @@ class TestBastion(util.TestCase):
         Based on the configuration for this test case.
         """
         # override gate headers option
-        bastion._CONF.set_override(
+        util.CONF.set_override(
             'gate_headers',
             [],
             bastion.OPT_GROUP_NAME,
             enforce_type=True
         )
         # re-wrap the app after modifying config opt
-        self.bastion = bastion.wrap(self.app, self.wrapped_app)
+        self.bastion = bastion.Bastion(self.app, self.wrapped_app, util.CONF)
 
         env = self.create_env(route)
         env['HTTP_X_FORWARDED_FOR'] = 'taco'
@@ -95,14 +89,14 @@ class TestBastion(util.TestCase):
     @ddt.data('/v1/health')
     def test_multiple_gate_headers_allow_access(self, route):
         # override gate headers option
-        bastion._CONF.set_override(
+        util.CONF.set_override(
             'gate_headers',
             ['HTTP_X_FORWARDED_FOR', 'HTTP_USER_AGENT'],
             bastion.OPT_GROUP_NAME,
             enforce_type=True
         )
         # re-wrap the app after modifying config opt
-        self.bastion = bastion.wrap(self.app, self.wrapped_app)
+        self.bastion = bastion.Bastion(self.app, self.wrapped_app, util.CONF)
 
         env = self.create_env(route)
         env['HTTP_X_FORWARDED_FOR'] = 'taco'
@@ -111,14 +105,14 @@ class TestBastion(util.TestCase):
     @ddt.data('/v1/health')
     def test_multiple_gate_headers_restrict_access(self, route):
         # override gate headers option
-        bastion._CONF.set_override(
+        util.CONF.set_override(
             'gate_headers',
             ['HTTP_X_FORWARDED_FOR', 'HTTP_USER_AGENT'],
             bastion.OPT_GROUP_NAME,
             enforce_type=True
         )
         # re-wrap the app after modifying config opt
-        self.bastion = bastion.wrap(self.app, self.wrapped_app)
+        self.bastion = bastion.Bastion(self.app, self.wrapped_app, util.CONF)
 
         env = self.create_env(route)
         env['HTTP_X_FORWARDED_FOR'] = 'taco'

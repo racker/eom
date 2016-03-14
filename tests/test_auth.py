@@ -130,7 +130,7 @@ class TestAuth(util.TestCase):
         self.test_url = '/v2/vault'
         self.default_max_cache_life = 30
 
-        auth._CONF.set_override(
+        util.CONF.set_override(
             'blacklist_ttl',
             5,
             auth.AUTH_GROUP_NAME,
@@ -146,7 +146,7 @@ class TestAuth(util.TestCase):
         self.redis_client = fakeredis_connection()
         self.redis_client().flushall()
         del self.redis_client
-        auth._CONF.clear_override('alternate_validation', auth.AUTH_GROUP_NAME)
+        util.CONF.clear_override('alternate_validation', auth.AUTH_GROUP_NAME)
 
         # config = auth.CONF['eom:auth']
         # config['auth_url'] = self.runtime_url
@@ -289,7 +289,7 @@ class TestAuth(util.TestCase):
 
         # Invalid Cache Error
         # - we use a random url for the cache conflict portion
-        auth._CONF.set_override(
+        util.CONF.set_override(
             'auth_url',
             '/random/url',
             auth.AUTH_GROUP_NAME,
@@ -300,7 +300,7 @@ class TestAuth(util.TestCase):
             token
         )
         self.assertIsNone(invalid_cached_data)
-        auth._CONF.clear_override('auth_url', auth.AUTH_GROUP_NAME)
+        util.CONF.clear_override('auth_url', auth.AUTH_GROUP_NAME)
 
         with mock.patch.object(self.redis_client, 'get') as mock_redis_get:
             mock_redis_get.side_effect = Exception('mock redis exception')
@@ -465,7 +465,7 @@ class TestAuth(util.TestCase):
         tenant_id = '172839405'
         token = 'AaBbCcDdEeFf'
 
-        auth._CONF.set_override(
+        util.CONF.set_override(
             'alternate_validation',
             True,
             auth.AUTH_GROUP_NAME,
@@ -495,7 +495,7 @@ class TestAuth(util.TestCase):
         tenant_id = '172839405'
         token = 'AaBbCcDdEeFf'
 
-        auth._CONF.set_override(
+        util.CONF.set_override(
             'alternate_validation',
             True,
             auth.AUTH_GROUP_NAME,
