@@ -29,7 +29,7 @@ formatter = standard
 level = DEBUG
 class = logging.FileHandler
 formatter = standard
-filename = /var/log/eom/eom.log
+filename = /tmp/eom.log
 
 [handler_syslog]
 level = DEBUG
@@ -41,7 +41,7 @@ address = /dev/log
 level = DEBUG
 class = logging.handlers.RotatingFileHandler
 formatter = standard
-args=('/var/log/eom/eom.log', 400000000, 2)
+args=('/tmp/eom.log', 400000000, 2)
 
 [formatter_standard]
 format = '%(asctime)s %(levelname)-5.5s [%(name)s_%(lineno)d][%(threadName)s] : %(message)s'

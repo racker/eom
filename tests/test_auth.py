@@ -149,7 +149,10 @@ class TestAuth(util.TestCase):
     def test_cache_key(self):
         value_input = ('1', '2', '3', '4')
         value_hash = hashlib.sha1()
-        value_hash.update("(1,2,3,4)")
+        if six.PY3:
+            value_hash.update('(1,2,3,4)'.encode('utf-8'))
+        else:
+            value_hash.update('(1,2,3,4)')
         value_output = value_hash.hexdigest()
 
         test_result = auth._tuple_to_cache_key(value_input)
@@ -158,8 +161,12 @@ class TestAuth(util.TestCase):
     def test_blacklist_cachekey(self):
         value_input = 'fr4nkb3t4p3t3r'
         value_hash = hashlib.sha1()
-        value_hash.update('blacklist')
-        value_hash.update(value_input)
+        if six.PY3:
+            value_hash.update('blacklist'.encode('utf-8'))
+            value_hash.update(value_input.encode('utf-8'))
+        else:
+            value_hash.update('blacklist')
+            value_hash.update(value_input)
         value_output = value_hash.hexdigest()
 
         test_result = auth._blacklist_cache_key(
