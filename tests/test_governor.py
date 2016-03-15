@@ -90,7 +90,7 @@ def make_rate(limit, methods=None,
 
 
 def fakeredis_connection():
-    return fakeredis.FakeRedis()
+    return fakeredis.FakeRedis
 
 
 class DTuple(tuple):
@@ -123,27 +123,32 @@ class TestGovernor(util.TestCase):
     def setUp(self):
         super(TestGovernor, self).setUp()
         self.redis_client = fakeredis_connection()
-        governor.configure(util.CONF)
-        self.governor = governor.wrap(util.app, self.redis_client)
 
-        config = governor.get_conf()
-        rates = governor._load_rates(config['rates_file'])
+        pool_patcher = mock.patch('redis.ConnectionPool')
+        self.mock_pool = pool_patcher.start()
+        self.addCleanup(pool_patcher.stop)
+
+        client_patcher = mock.patch('redis.Redis', new=self.redis_client)
+        self.mock_client = client_patcher.start()
+        self.addCleanup(client_patcher.stop)
+
+        self.governor = governor.Governor(util.app, util.CONF)
+
+        rates = self.governor._load_rates(
+            self.governor._gov_conf['rates_file']
+        )
 
         self.test_rate = rates[0]
         self.limit = self.test_rate.limit
         self.test_url = '/v1/queues/fizbit/messages'
-        self.limiter = governor._create_limiter(self.redis_client)
+        self.limiter = self.governor._create_limiter()
 
         self.default_rate = rates[1]
 
     def tearDown(self):
         super(TestGovernor, self).tearDown()
-        redis_client = fakeredis_connection()
-        redis_client.flushall()
-
-    def test_get_conf(self):
-        config = governor.get_conf()
-        self.assertIsNotNone(config)
+        self.redis_client().flushall()
+        del self.redis_client
 
     def test_missing_project_id(self):
         env = self.create_env('/v1')
@@ -165,7 +170,7 @@ class TestGovernor(util.TestCase):
     )
     def test_applies_to_method(self, data):
         rate, method, expect = data
-        self.assertEqual(governor.applies_to(rate, method, ""), expect)
+        self.assertEqual(self.governor.applies_to(rate, method, ""), expect)
 
     @ddt.data(
         # (rate, route, expect)
@@ -177,14 +182,18 @@ class TestGovernor(util.TestCase):
     )
     def test_applies_to_route(self, data):
         rate, route, expect = data
-        self.assertEqual(governor.applies_to(rate, [], route), expect)
+        self.assertEqual(self.governor.applies_to(rate, [], route), expect)
 
     def test_match_rate_gives_preference_to_project_specific(self):
         expect = make_rate(1)
         prates = {'11': expect}
         grates = [make_rate(2), make_rate(4)]
+
+        self.governor.rates = grates
+        self.governor.project_rates = prates
+
         self.assertEqual(
-            governor.match_rate('11', None, None, prates, grates),
+            self.governor.match_rate('11', None, None),
             expect
         )
 
@@ -192,16 +201,24 @@ class TestGovernor(util.TestCase):
         expect = make_rate(2)
         prates = {'11': make_rate(2)}
         grates = [expect, make_rate(4)]
+
+        self.governor.rates = grates
+        self.governor.project_rates = prates
+
         self.assertEqual(
-            governor.match_rate('12', None, None, prates, grates),
+            self.governor.match_rate('12', None, None),
             expect
         )
 
     def test_match_rate_returns_none_when_none_applicable(self):
         prates = {'11': make_rate(2)}
         grates = [make_rate(2, ['GET']), make_rate(1, ['DELETE'])]
+
+        self.governor.rates = grates
+        self.governor.project_rates = prates
+
         self.assertIsNone(
-            governor.match_rate('12', 'PUT', None, prates, grates)
+            self.governor.match_rate('12', 'PUT', None)
         )
 
     @mock.patch('time.time')
@@ -211,7 +228,7 @@ class TestGovernor(util.TestCase):
         [call() for _ in range(self.limit)]
 
         self.assertEqual(
-            float(self.redis_client.hmget(1, 'c')[0]),
+            float(self.redis_client().hmget(1, 'c')[0]),
             float(self.limit)
         )
         self.assertRaises(governor.HardLimitError, call)

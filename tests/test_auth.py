@@ -143,7 +143,6 @@ class TestAuth(util.TestCase):
 
     def tearDown(self):
         super(TestAuth, self).tearDown()
-        self.redis_client = fakeredis_connection()
         self.redis_client().flushall()
         del self.redis_client
         util.CONF.clear_override('alternate_validation', auth.AUTH_GROUP_NAME)
