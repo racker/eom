@@ -153,15 +153,23 @@ def _tuple_to_cache_key(t):
     key_data = '(%(s_data)s)' % {
         's_data': ','.join(t)
     }
+    if six.PY3:
+        key_data = key_data.encode('utf-8')
+
     key = hashlib.sha1()
     key.update(key_data)
     return key.hexdigest()
 
 def _blacklist_cache_key(t):
     """Convert token to a cache key for blacklists"""
+    key_data = 'blacklist%(s_data)s' % {
+        's_data': t
+    }
+    if six.PY3:
+        key_data = key_data.encode('utf-8')
+
     key = hashlib.sha1()
-    key.update('blacklist')
-    key.update(t)
+    key.update(key_data)
     return key.hexdigest()
 
 
