@@ -26,8 +26,9 @@ standard entry point for the app is referred to as "gated entry".
 Wrapping with the bastion looks like:
 
     backdoor = marconi.queues.transport.wsgi.app.app
-    gated = UriTransformer.wrap(Authentication.wrap(backdoor))
-    app = bastion.wrap(backdoor, gated)
+    auth = auth.Auth(backdoor, conf)
+    gated = UriTransformer(auth, conf)
+    app = bastion.Bastion(backdoor, gated, conf)
 
 The control flow is as follows:
 

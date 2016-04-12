@@ -19,11 +19,8 @@ The following is an example of the EOM Auth module being loaded in this manner:
 
     CONF = cfg.CONF
     CONF(project='mywsgiapp', args=[])
-    eom.auth.configure(CONF)
 
-    auth_redis_client = auth.get_auth_redis_client()
-
-    app = eom.auth.wrap(myapp.app, auth_redis_client)
+    app = eom.auth.Auth(myapp.app, CONF)
 
 Failure to call the configuration function on the modules will still allow the functionality to run; however,
 they may not have the expected settings.
