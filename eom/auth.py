@@ -31,8 +31,6 @@ import six
 
 from eom.utils import log as logging
 
-LOG = logging.getLogger(__name__)
-
 MAX_CACHE_LIFE_DEFAULT = int((datetime.datetime.max -
                               datetime.datetime.utcnow()).total_seconds() - 30)
 
@@ -112,6 +110,8 @@ class Auth(object):
 
         logging.register(conf, AUTH_GROUP_NAME)
         logging.setup(conf, AUTH_GROUP_NAME)
+
+        self.logger = logging.getLogger(__name__)
 
         self._auth_conf = conf[AUTH_GROUP_NAME]
         self._redis_conf = conf[REDIS_GROUP_NAME]
@@ -194,7 +194,7 @@ class Auth(object):
 
         except Exception as ex:
             msg = 'Failed to cache the data - Exception: {0}'.format(str(ex))
-            LOG.error(msg)
+            self.logger.error(msg)
             return False
 
     def _is_token_blacklisted(self, token):
@@ -211,7 +211,7 @@ class Auth(object):
 
             cached_data = self.redis_client.get(cached_key)
         except Exception as ex:
-            LOG.debug(
+            self.logger.debug(
                 (
                     'Failed to retrieve data to cache for key {0} '
                     'Exception: {1}'
@@ -294,7 +294,7 @@ class Auth(object):
 
         except Exception as ex:
             msg = 'Failed to cache the data - Exception: {0}'.format(str(ex))
-            LOG.error(msg)
+            self.logger.error(msg)
             return False
 
     def _retrieve_data_from_cache(self, tenant, token):
@@ -313,7 +313,7 @@ class Auth(object):
             cache_key = self._tuple_to_cache_key(cache_key_tuple)
             cached_data = self.redis_client.get(cache_key)
         except Exception as ex:
-            LOG.debug(
+            self.logger.debug(
                 (
                     'Failed to retrieve data to cache for key {0}'
                     'Exception: {1}'
@@ -335,10 +335,10 @@ class Auth(object):
                     'Stored data does not contain any credentials - '
                     'Exception: {0}; Data: {1}'
                 ).format(str(ex), data)
-                LOG.error(msg)
+                self.logger.error(msg)
                 return None
         else:
-            LOG.debug('No data in cache for key {0}'.format(cache_key))
+            self.logger.debug('No data in cache for key {0}'.format(cache_key))
             # It wasn't cached
             return None
 
@@ -369,8 +369,9 @@ class Auth(object):
                 }
                 resp = requests.get(validation_url, headers=headers)
                 if resp.status_code >= 400:
-                    LOG.debug('Request returned failure status: {0}'.format(
-                        resp.status_code))
+                    self.logger.debug(
+                        'Request returned failure status: {0}'.format(
+                            resp.status_code))
                     raise exceptions.from_response(resp, 'GET', _url)
 
                 try:
@@ -412,13 +413,13 @@ class Auth(object):
                 self._auth_conf['auth_url'],
                 str(ex)
             )
-            LOG.debug(msg)
+            self.logger.debug(msg)
 
             # Blacklist the token
             self._blacklist_token(token)
             return None
         except exceptions.RequestEntityTooLarge:
-            LOG.debug(
+            self.logger.debug(
                 'Request entity too large error from authentication server.'
             )
             raise
@@ -428,7 +429,7 @@ class Auth(object):
                 self._auth_conf['auth_url'],
                 str(ex)
             )
-            LOG.debug(msg)
+            self.logger.debug(msg)
 
             return None
 
@@ -449,27 +450,28 @@ class Auth(object):
 
         if access_info is not None:
             if access_info.will_expire_soon():
-                LOG.info('Token has expired')
+                self.logger.info('Token has expired')
                 del access_info
                 access_info = None
 
         # Check if we failed to get it from the cache and
         # retrieve from keystone instead
         if access_info is None:
-            LOG.debug('Failed to retrieve token from cache. Trying Keystone')
+            self.logger.debug(
+                'Failed to retrieve token from cache. Trying Keystone')
             access_info = self._retrieve_data_from_keystone(
                 tenant,
                 token,
                 max_cache_life
             )
         else:
-            LOG.debug('Retrieved token from cache.')
+            self.logger.debug('Retrieved token from cache.')
 
         # Validate we have an access object and
         # Make sure it's not already expired
         if access_info is not None:
             if access_info.will_expire_soon():
-                LOG.info('Token has expired')
+                self.logger.info('Token has expired')
                 del access_info
                 access_info = None
 
@@ -509,7 +511,8 @@ class Auth(object):
             )
 
             if access_info is None:
-                LOG.debug('Unable to get Access info for {0}'.format(tenant))
+                self.logger.debug(
+                    'Unable to get Access info for {0}'.format(tenant))
                 return False
 
             # provided data was valid,
@@ -550,11 +553,11 @@ class Auth(object):
                     )
 
                 except Exception:
-                    LOG.debug('Failed to decode the data properly')
+                    self.logger.debug('Failed to decode the data properly')
                     return False
 
                 if decode_check != utf8_data:
-                    LOG.debug(
+                    self.logger.debug(
                         'Decode Check: decoded data does not match '
                         'encoded data'
                     )
@@ -583,7 +586,7 @@ class Auth(object):
             return True
 
         except exceptions.RequestEntityTooLarge:
-            LOG.debug(
+            self.logger.debug(
                 'Request entity too large error from authentication server.'
             )
             raise
@@ -595,7 +598,7 @@ class Auth(object):
                 self._auth_conf['auth_url'],
                 str(ex)
             )
-            LOG.debug(msg)
+            self.logger.debug(msg)
             return False
 
     @staticmethod
@@ -628,7 +631,7 @@ class Auth(object):
         # blacklist_ttl = self._auth_conf['blacklist_ttl']
         max_cache_life = self._auth_conf['max_cache_life']
 
-        LOG.debug('Auth URL: {0:}'.format(self._auth_conf['auth_url']))
+        self.logger.debug('Auth URL: {0:}'.format(self._auth_conf['auth_url']))
 
         try:
             token = env['HTTP_X_AUTH_TOKEN']
@@ -641,20 +644,20 @@ class Auth(object):
                 env,
                 max_cache_life
             ):
-                LOG.debug('Auth Token validated.')
+                self.logger.debug('Auth Token validated.')
                 return self.app(env, start_response)
 
             else:
                 # Validation failed for some reason, just error out as a 401
-                LOG.error('Auth Token validation failed.')
+                self.logger.error('Auth Token validation failed.')
                 return self._http_unauthorized(start_response)
         except (KeyError, LookupError):
             # Header failure, error out with 412
-            LOG.error('Missing required headers.')
+            self.logger.error('Missing required headers.')
             return self._http_precondition_failed(start_response)
 
         except exceptions.RequestEntityTooLarge as exc:
-            LOG.error(
+            self.logger.error(
                 'Request too large, client should retry after {0}.'.format(
                     exc.retry_after
                 )

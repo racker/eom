@@ -53,8 +53,6 @@ from oslo_config import cfg
 
 from eom.utils import log as logging
 
-LOG = logging.getLogger(__name__)
-
 OPT_GROUP_NAME = 'eom:bastion'
 OPTIONS = [
     cfg.ListOpt(
@@ -93,6 +91,8 @@ class Bastion(object):
         logging.register(conf, OPT_GROUP_NAME)
         logging.setup(conf, OPT_GROUP_NAME)
 
+        self.logger = logging.getLogger(__name__)
+
         self.app_backdoor = app_backdoor
         self.app_gated = app_gated
 
@@ -118,7 +118,7 @@ class Bastion(object):
                     else:
                         return self._http_gate_failure(start_response)
         else:
-            LOG.warn(
+            self.logger.warn(
                 "Bastion is in use and gate_headers option is not configured."
             )
 

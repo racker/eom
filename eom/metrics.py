@@ -22,8 +22,6 @@ import statsd
 
 from eom.utils import log as logging
 
-LOG = logging.getLogger(__name__)
-
 METRICS_GROUP = 'eom:metrics'
 METRICS_OPTIONS = [
     cfg.StrOpt('address',
@@ -61,6 +59,8 @@ class Metrics(object):
 
         logging.register(conf, METRICS_GROUP)
         logging.setup(conf, METRICS_GROUP)
+
+        self.logger = logging.getLogger(__name__)
 
         self._metrics_conf = conf[METRICS_GROUP]
 

@@ -20,8 +20,6 @@ import simplejson as json
 
 from eom.utils import log as logging
 
-LOG = logging.getLogger(__name__)
-
 OPT_GROUP_NAME = 'eom:rbac'
 OPTION_NAME = 'acls_file'
 
@@ -37,6 +35,8 @@ class Rbac(object):
 
         logging.register(conf, OPT_GROUP_NAME)
         logging.setup(conf, OPT_GROUP_NAME)
+
+        self.logger = logging.getLogger(__name__)
 
         self._rbac_conf = conf[OPT_GROUP_NAME]
 
@@ -101,13 +101,13 @@ class Rbac(object):
             if route.match(path):
                 break
         else:
-            LOG.debug('Requested path not recognized. Skipping RBAC.')
+            self.logger.debug('Requested path not recognized. Skipping RBAC.')
             return self.app(env, start_response)
 
         try:
             roles = env['HTTP_X_ROLES']
         except KeyError:
-            LOG.error('Request headers did not include X-Roles')
+            self.logger.error('Request headers did not include X-Roles')
             return self._http_forbidden(start_response)
 
         given_roles = set(roles.split(',')) if roles else EMPTY_SET
@@ -116,7 +116,7 @@ class Rbac(object):
         try:
             authorized_roles = acl[method]
         except KeyError:
-            LOG.error('HTTP method not supported: %s' % method)
+            self.logger.error('HTTP method not supported: %s' % method)
             return self._http_forbidden(start_response)
 
         # The user must have one of the roles that
@@ -128,5 +128,6 @@ class Rbac(object):
         logline = (
             'User not authorized to %(method)s the %(resource)s resource'
         )
-        LOG.info(logline.format({'method': method, 'resource': resource}))
+        self.logger.info(
+            logline.format({'method': method, 'resource': resource}))
         return self._http_forbidden(start_response)

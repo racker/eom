@@ -27,7 +27,6 @@ from eom.utils import log as logging
 
 
 _CONF = cfg.CONF
-LOG = logging.getLogger(__name__)
 
 GOV_GROUP_NAME = 'eom:governor'
 GOV_OPTIONS = [
@@ -116,6 +115,8 @@ class Governor(object):
         logging.register(conf, GOV_GROUP_NAME)
         logging.setup(conf, GOV_GROUP_NAME)
 
+        self.logger = logging.getLogger(__name__)
+
         self._redis_conf = conf[REDIS_GROUP_NAME]
         self._gov_conf = conf[GOV_GROUP_NAME]
 
@@ -181,7 +182,8 @@ class Governor(object):
                 for doc in document
             )
         except cfg.ConfigFilesNotFoundError:
-            LOG.warn('Proceeding without project-specific rate limits.')
+            self.logger.warn(
+                'Proceeding without project-specific rate limits.')
             return {}
 
     @staticmethod
@@ -236,7 +238,7 @@ class Governor(object):
 
             except redis.exceptions.ConnectionError as ex:
                 message = 'Redis Error:{0} for Project-ID:{1}'
-                LOG.warn(message.format(ex, project_id))
+                self.logger.warn(message.format(ex, project_id))
 
             if new_count > rate.limit:
                 raise HardLimitError()
@@ -277,12 +279,13 @@ class Governor(object):
         try:
             project_id = env['HTTP_X_PROJECT_ID']
         except KeyError:
-            LOG.debug('Request headers did not include X-Project-ID')
+            self.logger.debug('Request headers did not include X-Project-ID')
             return self._http_400(start_response)
 
         rate = self.match_rate(project_id, path, method)
         if rate is None:
-            LOG.debug('Requested path not recognized. Full steam ahead!')
+            self.logger.debug(
+                'Requested path not recognized. Full steam ahead!')
             return self.app(env, start_response)
 
         try:
@@ -296,9 +299,9 @@ class Governor(object):
 
             time.sleep(self.throttle_milliseconds)
 
-            LOG.warn(message.format(rate=rate.limit,
-                                    project_id=project_id,
-                                    name=rate.name))
+            self.logger.warn(message.format(rate=rate.limit,
+                                            project_id=project_id,
+                                            name=rate.name))
             return self._http_429(start_response)
 
         return self.app(env, start_response)
