@@ -1,5 +1,5 @@
 # Packaging
-distribute>=0.6.24
+# distribute>=0.6.24
 
 # Unit testing
 ddt

@@ -121,7 +121,7 @@ class TestUwsgiMapper(util.TestCase):
         # chosen after some experimentation. If you find these tests
         # failing spuriously in your test environment, submit an issue
         # to the github repo and let's bump this value up!
-        time.sleep(0.03)
+        time.sleep(1)
 
     def tearDown(self):
         _kill_uwsgi_process(self.uwsgi_process)  # Just in case
@@ -147,7 +147,7 @@ class TestUwsgiMapper(util.TestCase):
                       loglines)
 
     def test_map_logs_project_when_given(self):
-        self._expect({'X-Project-Id': 1234})
+        self._expect({'X-Project-Id': '1234'})
 
     def test_map_logs_None_when_missing(self):
         self._expect()
