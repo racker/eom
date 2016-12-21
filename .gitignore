@@ -48,3 +48,5 @@ AUTHORS
 
 # Read The Docs
 docs/_build
+.DS_Store
+
