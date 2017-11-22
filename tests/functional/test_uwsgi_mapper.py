@@ -121,7 +121,7 @@ class TestUwsgiMapper(util.TestCase):
         # chosen after some experimentation. If you find these tests
         # failing spuriously in your test environment, submit an issue
         # to the github repo and let's bump this value up!
-        time.sleep(2)
+        time.sleep(1)
 
     def tearDown(self):
         _kill_uwsgi_process(self.uwsgi_process)  # Just in case
