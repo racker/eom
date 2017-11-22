@@ -21,6 +21,8 @@ from tests.util import app as example_app
 conf = cfg.CONF
 conf(project='eom', args=[])
 
+auth.configure(conf)
+
 # Get the separated Redis Server for Auth
 auth_redis_client = auth.get_auth_redis_client()
 

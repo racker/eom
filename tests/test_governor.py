@@ -239,7 +239,7 @@ class TestGovernor(util.TestCase):
         host, port = '127.0.0.1', 8783
         with make_silent_server(self.governor, host, port):
             url = 'http://%s:%s' % (host, port) + self.test_url
-            call = lambda: request(url, headers={'X-Project-ID': 1234})
+            call = lambda: request(url, headers={'X-Project-ID': '1234'})
             resps = [call().status_code for _ in range(limit)]
             self.assertEqual(resps[-1], expected_status)
 
@@ -249,7 +249,7 @@ class TestGovernor(util.TestCase):
         host, port = '127.0.0.1', 8783
         with make_silent_server(self.governor, host, port):
             url = 'http://%s:%s' % (host, port) + self.test_url
-            call = lambda: request(url, headers={'X-Project-ID': 1234})
+            call = lambda: request(url, headers={'X-Project-ID': '1234'})
             [call().status_code for _ in range(limit // 2)]
             time.sleep(2.0)
             resp = [call().status_code for _ in range(limit // 2)][-1]
