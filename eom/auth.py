@@ -160,6 +160,7 @@ def _tuple_to_cache_key(t):
     key.update(key_data)
     return key.hexdigest()
 
+
 def _blacklist_cache_key(t):
     """Convert token to a cache key for blacklists"""
     key_data = 'blacklist%(s_data)s' % {
