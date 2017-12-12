@@ -19,7 +19,6 @@ import datetime
 import hashlib
 import logging
 from wsgiref import simple_server
-import unittest
 
 import ddt
 import fakeredis

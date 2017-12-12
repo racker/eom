@@ -76,7 +76,8 @@ class TestBastion(util.TestCase):
     def test_empty_gate_headers_deny_access(self, route):
         """bastion should allow all traffic for this endpoint.
 
-        Based on the configuration for this test case."""
+        Based on the configuration for this test case.
+        """
         # override gate headers option
         bastion._CONF.set_override(
             'gate_headers',
