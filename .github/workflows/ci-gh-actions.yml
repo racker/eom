@@ -1,0 +1,46 @@
+name: EOM
+on: [pull_request]
+
+job:
+    lint:
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: true
+            matrix:
+                python-version: [3.9]
+        steps:
+            - uses: actions/checkout@v2
+              with:
+               ref: ${{ github.event.pull_request.head.sha }}
+            - name: Setup Python ${{ matrix.python-version }}
+              uses: actions/setup-python@v2
+              with:
+                python-version: ${{ matrix.python-version }}
+            - name: Install Dependencies 
+              run: pip install -r test-requirements.txt -r requirements.txt --upgrade
+            - name: Install 
+              run: pip install .
+            - name: Run Tox
+              run: tox -v -e pep8 -- -v
+    test: 
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: true
+            matrix:
+                python-version: [3.9, 3.10, 3.11]
+        steps:
+            - uses: actions/checkout@v2
+              with:
+               ref: ${{ github.event.pull_request.head.sha }}
+            - name: Setup Python ${{ matrix.python-version }}
+              uses: actions/setup-python@v2
+              with:
+                python-version: ${{ matrix.python-version }}
+            - name: Install Dependencies 
+              run: pip install -r test-requirements.txt -r requirements.txt --upgrade
+            - name: Install 
+              run: pip install .
+            - name: Run Tox
+              run: tox -v -e py${{ matrix.python-version }} -- -v
+            - name: Run Tox Optional Modules
+              run: nosetests --with-coverage --cover-package=eom tests
